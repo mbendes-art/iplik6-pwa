@@ -34,7 +34,9 @@
             <div class="space-y-3">
                 <div>
                     <label class="block text-xs text-slate-400 mb-1">Kullanıcı Adı</label>
-                    <input type="text" id="username-input" placeholder="örn: g_goktas, mbendes" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-sky-500">
+                    <input type="text" id="username-input" list="user-suggestions" oninput="filterUserSuggestions()" placeholder="örn: a_aslan, g_goktas" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-sky-500">
+                    <!-- mbendes hariç dinamik öneri listesi -->
+                    <datalist id="user-suggestions"></datalist>
                 </div>
                 <button onclick="handleLogin()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-3 rounded-lg transition shadow">Giriş Yap</button>
             </div>
@@ -48,7 +50,7 @@
             </div>
             
             <!-- Arama Kutusu -->
-            <input type="text" id="search-input" oninput="filterMachineList()" placeholder="Makine ara (örn: e35, unifloc)..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
+            <input type="text" id="search-input" oninput="filterMachineList()" placeholder="Makine ara (örn: bobin, ring)..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
 
             <!-- Hızlı Kategori Filtre Butonları -->
             <div id="category-pills" class="flex gap-2 overflow-x-auto pb-1 text-xs">
@@ -129,7 +131,7 @@
             { username: "f_duran", name: "F. Duran", role: "IHZARAT" },
             { username: "r_evler", name: "R. Evler", role: "IHZARAT" },
             { username: "g_gumus", name: "G. Gümüş", role: "IHZARAT" },
-            { username: "a_aslan", name: "A. Aslan", role: "IHZARAT" },
+            { username: "a_aslan", name: "A. Aslan", role: "RING_BOBIN" },
             { username: "m_karahan", name: "M. Karahan", role: "RING_BOBIN" },
             { username: "m_bay", name: "M. Bay", role: "RING_BOBIN" },
             { username: "e_candan", name: "E. Candan", role: "RING_BOBIN" },
@@ -137,7 +139,7 @@
         ];
 
         const IHZARAT_KELIMELERI = ["HARMAN", "UNIFLOC", "UNICLEAN", "UNIMİX", "UNIMIX", "UNISTORE", "KONDENSER", "VSI", "TARAK", "CER", "FİTİL", "FITIL", "FT6D", "FTK", "İHZARAT", "IHZARAT", "OMEGALLAP", "E35"];
-        const RING_BOBIN_KELIMELERI = ["RING", "RİNG", "BOBIN", "BOBİN", "AUTOCONER", "OTOKON", "ORION", "SAVIO", "MURATA", "LINK", "LİNK", "PAKET", "PAKETLEME", "FİKSE", "FIKSE", "KAZAN"];
+        const RING_BOBIN_KELIMELERI = ["RING", "RİNG", "BOBIN", "BOBİN", "PAKET", "PAKETLEME", "Q-PRO"];
         const KLIMA_KELIMELERI = ["KLİMA", "KLIMA", "KLM", "SANTRAL", "TELEF TOPLAMA", "PNOMOFİL", "PNOMOFIL", "KOMPRESÖR", "KOMPRESOR", "KURUTUCU"];
 
         let currentUser = null;
@@ -148,12 +150,31 @@
         function normalize(str) {
             return (str || "").trim().toLowerCase()
                 .replace(/ı/g, 'i')
-                .replace(/i/g, 'i')
+                .replace(/İ/g, 'i')
                 .replace(/ğ/g, 'g')
                 .replace(/ü/g, 'u')
                 .replace(/ş/g, 's')
                 .replace(/ö/g, 'o')
                 .replace(/ç/g, 'c');
+        }
+
+        // Giriş yaparken mbendes hariç diğer kullanıcıların harfe göre öngörülmesi (datalist doldurma)
+        function filterUserSuggestions() {
+            const rawVal = document.getElementById('username-input').value.trim();
+            const datalistEl = document.getElementById('user-suggestions');
+            datalistEl.innerHTML = '';
+
+            if(!rawVal) return;
+
+            const normVal = normalize(rawVal);
+            const filteredUsers = USERS.filter(u => u.username !== 'mbendes' && normalize(u.username).includes(normVal));
+
+            filteredUsers.forEach(u => {
+                const opt = document.createElement('option');
+                opt.value = u.username;
+                opt.innerText = `${u.name} (${u.username})`;
+                datalistEl.appendChild(opt);
+            });
         }
 
         async function handleLogin() {
@@ -167,7 +188,7 @@
 
             const foundUser = USERS.find(u => normalize(u.username) === normInput);
             if(!foundUser) {
-                alert('Hatalı veya tanımlı olmayan kullanıcı adı! Lütfen listedeki geçerli bir kullanıcı adıyla giriş yapın.');
+                alert('Hataly veya tanımlı olmayan kullanıcı adı! Lütfen geçerli bir kullanıcı adıyla giriş yapın.');
                 return;
             }
 
@@ -197,6 +218,7 @@
             currentCategoryFilter = 'ALL';
             
             document.getElementById('username-input').value = '';
+            document.getElementById('user-suggestions').innerHTML = '';
             document.getElementById('detail-section').classList.add('hidden');
             document.getElementById('dashboard-section').classList.add('hidden');
             document.getElementById('login-section').classList.remove('hidden');
@@ -214,7 +236,7 @@
             if (currentUser.role === 'IHZARAT') {
                 cats = ["Harman", "Tarak", "Cer", "Fitil", "Omegallap"];
             } else if (currentUser.role === 'RING_BOBIN') {
-                cats = ["Ring", "Autoconer", "Fikse"];
+                cats = ["Ring", "Bobin"];
             } else if (currentUser.username === 'm_altuntas') {
                 cats = ["Klima", "Kompresör", "Kurutucu"];
             } else {
@@ -271,6 +293,12 @@
 
                     return IHZARAT_KELIMELERI.some(w => normText.includes(normalize(w)));
                 } else if (currentUser.role === 'RING_BOBIN') {
+                    const isKlima = KLIMA_KELIMELERI.some(w => normText.includes(normalize(w)));
+                    const isPnm = normText.includes('pnm') || normText.includes('pnomofil') || normText.includes('pnömofil');
+                    const isFikseOrKazan = normText.includes('fikse') || normText.includes('kazan');
+
+                    if (isKlima || isPnm || isFikseOrKazan) return false;
+
                     return RING_BOBIN_KELIMELERI.some(w => normText.includes(normalize(w)));
                 }
                 return true;
@@ -289,7 +317,7 @@
                     const text = normalize(`${m.name || ''} ${m.code || ''} ${m.machine_type || ''} ${m.location || ''}`);
                     
                     if (catNorm === 'fitil') {
-                        return text.includes('fitil') || text.includes('fıtıl') || text.includes('ftk') || text.includes('fit') || text.includes('ft6d') || text.includes('ft');
+                        return text.includes('fitil') || text.includes('ftk') || text.includes('ft');
                     }
                     if (catNorm === 'harman') {
                         return text.includes('harman') || text.includes('unifloc') || text.includes('uniclean') || text.includes('unimix');
@@ -302,6 +330,10 @@
                     }
                     if (catNorm === 'omegallap') {
                         return text.includes('omegallap') || text.includes('omega') || text.includes('e35');
+                    }
+                    // "Bobin" filtresi: BOBİN-1..10 ve Paketleme makinelerini yakalar
+                    if (catNorm === 'bobin') {
+                        return text.includes('bobin') || text.includes('paketleme') || text.includes('paket') || text.includes('q-pro');
                     }
                     
                     return text.includes(catNorm);
@@ -327,7 +359,7 @@
                     <div onclick="openMachineDetail(${machine.id})" class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center shadow hover:border-sky-500 transition cursor-pointer">
                         <div>
                             <h3 class="font-bold text-sky-400">${machine.code || machine.name}</h3>
-                            <p class="text-xs text-slate-400">${machine.machine_type || 'Genel'} - ${machine.location || 'İplik-6'}</p>
+                            <p class="text-xs text-slate-400">${machine.machine_type || 'Genel'} | ${machine.location || 'İplik-6'}</p>
                         </div>
                         <span class="bg-slate-700 text-xs px-2.5 py-1 rounded-full text-slate-300">Seç →</span>
                     </div>
