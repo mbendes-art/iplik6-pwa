@@ -172,37 +172,7 @@
             filteredUsers.forEach(u => {
                 const opt = document.createElement('option');
                 opt.value = u.username;
-                opt.innerText = `${u.name} (${u.username})`;
-                datalistEl.appendChild(opt);
-            });
-        }
-
-        async function handleLogin() {
-            const rawInput = document.getElementById('username-input').value.trim();
-            const normInput = normalize(rawInput);
-            
-            if(!normInput) {
-                alert('Lütfen bir kullanıcı adı girin!');
-                return;
-            }
-
-            const foundUser = USERS.find(u => normalize(u.username) === normInput);
-            if(!foundUser) {
-                alert('Hataly veya tanımlı olmayan kullanıcı adı! Lütfen geçerli bir kullanıcı adıyla giriş yapın.');
-                return;
-            }
-
-            currentUser = foundUser;
-            
-            try {
-                await supabaseClient.from('login_logs').insert([{ 
-                    username: currentUser.username, 
-                    login_time: new Date().toLocaleString('tr-TR') 
-                }]);
-            } catch(e) {}
-
-            document.getElementById('user-info').innerText = currentUser.name;
-            document.getElementById('role-badge').innerText = `Rol: ${currentUser.role}`;
+                opt.innerText = `${u.name} (${u.username})`; datalistEl.appendChild(opt); }); }  async function handleLogin() { const rawInput = document.getElementById('username-input').value.trim(); const normInput = normalize(rawInput);  if(!normInput) { alert('Lütfen bir kullanıcı adı girin!'); return; }  const foundUser = USERS.find(u => normalize(u.username) === normInput); if(!foundUser) { alert('Hatalı veya tanımlı olmayan kullanıcı adı! Lütfen geçerli bir kullanıcı adıyla giriş yapın.'); return; }  currentUser = foundUser;  try { await supabaseClient.from('login_logs').insert([{ username: currentUser.username, login_time: new Date().toLocaleString('tr-TR') }]); } catch(e) {}  document.getElementById('user-info').innerText = currentUser.name; document.getElementById('role-badge').innerText = `Rol: ${currentUser.role}`;
             document.getElementById('login-section').classList.add('hidden');
             document.getElementById('dashboard-section').classList.remove('hidden');
             document.getElementById('logout-btn').classList.remove('hidden');
@@ -244,43 +214,7 @@
             }
 
             cats.forEach(c => {
-                pillsEl.innerHTML += `<button onclick="setCategoryFilter('${c}')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition">${c}</button>`;
-            });
-        }
-
-        function setCategoryFilter(cat) {
-            currentCategoryFilter = cat;
-            
-            document.querySelectorAll('#category-pills button').forEach(btn => {
-                if(btn.innerText.toLowerCase() === cat.toLowerCase() || (cat === 'ALL' && btn.innerText === 'Tümü')) {
-                    btn.className = "cat-btn bg-sky-600 text-white px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition";
-                } else {
-                    btn.className = "cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition";
-                }
-            });
-
-            renderMachines(allMachinesCache);
-        }
-
-        async function loadMachines() {
-            const listEl = document.getElementById('machine-list');
-            listEl.innerHTML = '<p class="text-center text-slate-400 py-4">Makineler yükleniyor...</p>';
-
-            const { data, error } = await supabaseClient.from('machines').select('*').order('id', { ascending: true });
-            if(error) {
-                listEl.innerHTML = '<p class="text-red-400 text-center">Veriler çekilemedi!</p>';
-                return;
-            }
-            allMachinesCache = data || [];
-            renderMachines(allMachinesCache);
-        }
-
-        function filterMachinesForUser(machines) {
-            if (!currentUser) return [];
-            if (currentUser.role === 'ALL_FACTORY' && currentUser.username !== 'm_altuntas') return machines;
-
-            return machines.filter(m => {
-                const fullText = `${m.name || ''} ${m.code || ''} ${m.brand || ''} ${m.machine_type || ''} ${m.location || ''}`;
+                pillsEl.innerHTML += `<button onclick="setCategoryFilter('${c}')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition">${c}</button>`; }); }  function setCategoryFilter(cat) { currentCategoryFilter = cat;  document.querySelectorAll('#category-pills button').forEach(btn => { if(btn.innerText.toLowerCase() === cat.toLowerCase() \vert{}\vert{} (cat === 'ALL' && btn.innerText === 'Tümü')) { btn.className = "cat-btn bg-sky-600 text-white px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition"; } else { btn.className = "cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition"; } });  renderMachines(allMachinesCache); }  async function loadMachines() { const listEl = document.getElementById('machine-list'); listEl.innerHTML = '<p class="text-center text-slate-400 py-4">Makineler yükleniyor...</p>';  const { data, error } = await supabaseClient.from('machines').select('*').order('id', { ascending: true }); if(error) { listEl.innerHTML = '<p class="text-red-400 text-center">Veriler çekilemedi!</p>'; return; } allMachinesCache = data \vert{}\vert{} []; renderMachines(allMachinesCache); }  function filterMachinesForUser(machines) { if (!currentUser) return []; if (currentUser.role === 'ALL_FACTORY' && currentUser.username !== 'm_altuntas') return machines;  return machines.filter(m => { const fullText = `${m.name || ''} ${m.code \vert{}\vert{} ''}${m.brand || ''} ${m.machine_type \vert{}\vert{} ''}${m.location || ''}`;
                 const normText = normalize(fullText);
 
                 if (currentUser.username === 'm_altuntas') {
@@ -305,6 +239,40 @@
             });
         }
 
+        // Akıllı Sıralama Fonksiyonu: Önce Ring'ler (1'den 20'ye), sonra Bobin'ler sıralanır
+        function sortMachinesCustom(a, b) {
+            const codeA = normalize(a.code || a.name || '');
+            const codeB = normalize(b.code || b.name || '');
+
+            const isRingA = codeA.includes('ring');
+            const isRingB = codeB.includes('ring');
+            const isBobinA = codeA.includes('bobin');
+            const isBobinB = codeB.includes('bobin');
+
+            // Eğer ikisi de ring ise sayısal sıraya koy
+            if (isRingA && isRingB) {
+                const numA = parseInt(codeA.replace(/[^0-9]/g, '')) || 0;
+                const numB = parseInt(codeB.replace(/[^0-9]/g, '')) || 0;
+                return numA - numB;
+            }
+
+            // Ring'ler her zaman önce gelsin
+            if (isRingA) return -1;
+            if (isRingB) return 1;
+
+            // Eğer ikisi de bobin ise sayısal sıraya koy
+            if (isBobinA && isBobinB) {
+                const numA = parseInt(codeA.replace(/[^0-9]/g, '')) || 0;
+                const numB = parseInt(codeB.replace(/[^0-9]/g, '')) || 0;
+                return numA - numB;
+            }
+
+            if (isBobinA) return -1;
+            if (isBobinB) return 1;
+
+            return a.id - b.id;
+        }
+
         function renderMachines(machines) {
             const listEl = document.getElementById('machine-list');
             const searchVal = normalize(document.getElementById('search-input').value);
@@ -314,7 +282,7 @@
             if (currentCategoryFilter !== 'ALL') {
                 const catNorm = normalize(currentCategoryFilter);
                 allowed = allowed.filter(m => {
-                    const text = normalize(`${m.name || ''} ${m.code || ''} ${m.machine_type || ''} ${m.location || ''}`);
+                    const text = normalize(`${m.name \vert{}\vert{} ''}${m.code || ''} ${m.machine_type \vert{}\vert{} ''}${m.location || ''}`);
                     
                     if (catNorm === 'fitil') {
                         return text.includes('fitil') || text.includes('ftk') || text.includes('ft');
@@ -331,9 +299,11 @@
                     if (catNorm === 'omegallap') {
                         return text.includes('omegallap') || text.includes('omega') || text.includes('e35');
                     }
-                    // "Bobin" filtresi: BOBİN-1..10 ve Paketleme makinelerini yakalar
                     if (catNorm === 'bobin') {
                         return text.includes('bobin') || text.includes('paketleme') || text.includes('paket') || text.includes('q-pro');
+                    }
+                    if (catNorm === 'ring') {
+                        return text.includes('ring');
                     }
                     
                     return text.includes(catNorm);
@@ -346,6 +316,9 @@
                     normalize(m.code).includes(searchVal) || 
                     normalize(m.machine_type).includes(searchVal)
                 );
+            } else {
+                // Eğer arama yapılmıyorsa ve Tümü / Ring / Bobin modundaysak özel sıralamamızı uygulayalım
+                allowed.sort(sortMachinesCustom);
             }
 
             listEl.innerHTML = '';
@@ -359,7 +332,7 @@
                     <div onclick="openMachineDetail(${machine.id})" class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center shadow hover:border-sky-500 transition cursor-pointer">
                         <div>
                             <h3 class="font-bold text-sky-400">${machine.code || machine.name}</h3>
-                            <p class="text-xs text-slate-400">${machine.machine_type || 'Genel'} | ${machine.location || 'İplik-6'}</p>
+                            <p class="text-xs text-slate-400">${machine.machine_type \vert{}\vert{} 'Genel'} \vert{}${machine.location || 'İplik-6'}</p>
                         </div>
                         <span class="bg-slate-700 text-xs px-2.5 py-1 rounded-full text-slate-300">Seç →</span>
                     </div>
@@ -379,7 +352,7 @@
             document.getElementById('detail-section').classList.remove('hidden');
 
             document.getElementById('detail-machine-title').innerText = selectedMachine.code || selectedMachine.name;
-            document.getElementById('detail-machine-info').innerText = `${selectedMachine.machine_type || 'Genel'} | Konum: ${selectedMachine.location || 'İplik-6'}`;
+            document.getElementById('detail-machine-info').innerText = `${selectedMachine.machine_type \vert{}\vert{} 'Genel'} \vert{} Konum:${selectedMachine.location || 'İplik-6'}`;
 
             loadRecordsForMachine();
         }
@@ -423,60 +396,4 @@
                             <span class="text-slate-400">${rec.record_date || ''}</span>
                         </div>
                         <p class="text-sm text-slate-200 mt-1">${rec.description}</p>
-                        <p class="text-xs text-slate-400 border-t border-slate-700/50 pt-1 mt-1">Parça: ${rec.parts_replaced || '-'} | Teknisyen: ${rec.technician || '-'}</p>
-                    </div>
-                `;
-            });
-        }
-
-        function openAddRecordModal() {
-            document.getElementById('record-modal').classList.remove('hidden');
-        }
-
-        function closeAddRecordModal() {
-            document.getElementById('record-modal').classList.add('hidden');
-        }
-
-        async function submitNewRecord() {
-            const type = document.getElementById('rec-type').value;
-            const desc = document.getElementById('rec-desc').value.trim();
-            const parts = document.getElementById('rec-parts').value.trim();
-            
-            if(!desc) {
-                alert('Lütfen bir açıklama girin!');
-                return;
-            }
-
-            const mCode = selectedMachine.code || selectedMachine.name;
-            const fullDesc = `[${mCode}] ${desc}`;
-            const fullParts = parts ? `${mCode} | ${parts}` : '-';
-            const todayStr = new Date().toISOString().split('T')[0];
-
-            const { error } = await supabaseClient.from('maintenance_records').insert([{
-                machine_id: selectedMachine.id,
-                record_type: type,
-                description: fullDesc,
-                parts_replaced: fullParts,
-                technician: currentUser.name,
-                record_date: todayStr
-            }]);
-
-            if(error) {
-                alert('Kayıt eklenirken hata oluştu!');
-                console.error(error);
-                return;
-            }
-
-            closeAddRecordModal();
-            document.getElementById('rec-desc').value = '';
-            document.getElementById('rec-parts').value = '';
-            loadRecordsForMachine();
-        }
-
-        // Service Worker Kaydı
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW hatası:', err));
-        }
-    </script>
-</body>
-</html>
+                        <p class="text-xs text-slate-400 border-t border-slate-700/50 pt-1 mt-1">Parça: ${rec.parts_replaced || '-'} |
