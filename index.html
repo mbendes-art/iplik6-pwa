@@ -236,7 +236,7 @@
             if (currentUser.role === 'IHZARAT') {
                 cats = ["Harman", "Tarak", "Cer", "Fitil", "Omegallap"];
             } else if (currentUser.role === 'RING_BOBIN') {
-                cats = ["Ring", "Bobin"];
+                cats = ["Ring", "Bobin", "Paketleme"]; // Paketleme sekmesi eklendi
             } else if (currentUser.username === 'm_altuntas') {
                 cats = ["Klima", "Kompresör", "Kurutucu"];
             } else {
@@ -305,7 +305,7 @@
             });
         }
 
-        // Akıllı Sıralama Fonksiyonu: Önce Ring'ler (1'den 20'ye), sonra Bobin'ler sıralanır
+        // Akıllı Sıralama: Önce Ring'ler (1-20), sonra Bobin'ler, sonra Paketleme
         function sortMachinesCustom(a, b) {
             const codeA = normalize(a.code || a.name || '');
             const codeB = normalize(b.code || b.name || '');
@@ -314,27 +314,28 @@
             const isRingB = codeB.includes('ring');
             const isBobinA = codeA.includes('bobin');
             const isBobinB = codeB.includes('bobin');
+            const isPaketA = codeA.includes('paket') || codeA.includes('q-pro');
+            const isPaketB = codeB.includes('paket') || codeB.includes('q-pro');
 
-            // Eğer ikisi de ring ise sayısal sıraya koy
             if (isRingA && isRingB) {
                 const numA = parseInt(codeA.replace(/[^0-9]/g, '')) || 0;
                 const numB = parseInt(codeB.replace(/[^0-9]/g, '')) || 0;
                 return numA - numB;
             }
-
-            // Ring'ler her zaman önce gelsin
             if (isRingA) return -1;
             if (isRingB) return 1;
 
-            // Eğer ikisi de bobin ise sayısal sıraya koy
             if (isBobinA && isBobinB) {
                 const numA = parseInt(codeA.replace(/[^0-9]/g, '')) || 0;
                 const numB = parseInt(codeB.replace(/[^0-9]/g, '')) || 0;
                 return numA - numB;
             }
-
             if (isBobinA) return -1;
             if (isBobinB) return 1;
+
+            if (isPaketA && isPaketB) return 0;
+            if (isPaketA) return 1;
+            if (isPaketB) return -1;
 
             return a.id - b.id;
         }
@@ -365,11 +366,16 @@
                     if (catNorm === 'omegallap') {
                         return text.includes('omegallap') || text.includes('omega') || text.includes('e35');
                     }
+                    // Bobin sekmesinde sadece BOBİN makineleri yer alacak
                     if (catNorm === 'bobin') {
-                        return text.includes('bobin') || text.includes('paketleme') || text.includes('paket') || text.includes('q-pro');
+                        return text.includes('bobin');
                     }
                     if (catNorm === 'ring') {
                         return text.includes('ring');
+                    }
+                    // Paketleme sekmesi sadece paketleme makinesini gösterecek
+                    if (catNorm === 'paketleme') {
+                        return text.includes('paketleme') || text.includes('paket');
                     }
                     
                     return text.includes(catNorm);
@@ -383,7 +389,6 @@
                     normalize(m.machine_type).includes(searchVal)
                 );
             } else {
-                // Eğer arama yapılmıyorsa ve Tümü / Ring / Bobin modundaysak özel sıralamamızı uygulayalım
                 allowed.sort(sortMachinesCustom);
             }
 
