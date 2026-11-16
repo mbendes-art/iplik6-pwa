@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İplik 6 Bakım Takip PWA</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0ea5e9">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center shadow-md">
+        <div>
+            <h1 class="text-base font-bold text-sky-400">İplik-6 Bakım PWA</h1>
+            <p id="role-badge" class="text-xs text-slate-400">Rol: -</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="user-info" class="text-xs text-slate-300">Giriş Yapılmadı</span>
+            <button id="logout-btn" onclick="handleLogout()" class="hidden bg-red-600/20 text-red-400 border border-red-500/30 text-xs px-2 py-1 rounded">Çıkış</button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 p-4 max-w-md mx-auto w-full">
+        
+        <!-- Login Section -->
+        <div id="login-section" class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg mt-8">
+            <h2 class="text-xl font-semibold mb-4 text-center text-sky-400">Sisteme Giriş</h2>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Kullanıcı Adı</label>
+                    <input type="text" id="username-input" placeholder="örn: g_goktas, mbendes" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-sky-500">
+                </div>
+                <button onclick="handleLogin()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-3 rounded-lg transition shadow">Giriş Yap</button>
+            </div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboard-section" class="hidden space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-semibold">Makine Listesi</h2>
+                <button onclick="loadMachines()" class="bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg text-sky-400">Yenile</button>
+            </div>
+            
+            <!-- Arama Kutusu -->
+            <input type="text" id="search-input" oninput="filterMachineList()" placeholder="Makine ara (örn: e35, unifloc)..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
+
+            <!-- Hızlı Kategori Filtre Butonları -->
+            <div id="category-pills" class="flex gap-2 overflow-x-auto pb-1 text-xs">
+                <button onclick="setCategoryFilter('ALL')" class="cat-btn bg-sky-600 text-white px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition">Tümü</button>
+            </div>
+
+            <div id="machine-list" class="space-y-3 pb-6">
+                <!-- Makineler buraya yüklenecek -->
+            </div>
+        </div>
+
+        <!-- Machine Detail & Records Section -->
+        <div id="detail-section" class="hidden space-y-4">
+            <button onclick="backToDashboard()" class="bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg text-sky-400 mb-2">← Listeye Dön</button>
+            
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow">
+                <h2 id="detail-machine-title" class="text-lg font-bold text-sky-400">Makine Adı</h2>
+                <p id="detail-machine-info" class="text-xs text-slate-400 mt-1">Tür / Konum</p>
+            </div>
+
+            <!-- Yeni Kayıt Ekle Butonu -->
+            <button onclick="openAddRecordModal()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow">➕ Yeni Bakım / Arıza Kaydı Ekle</button>
+
+            <div class="flex justify-between items-center mt-2">
+                <h3 class="text-sm font-semibold text-slate-300">Geçmiş Kayıtlar</h3>
+            </div>
+
+            <div id="records-list" class="space-y-3 pb-6">
+                <!-- Kayıtlar buraya yüklenecek -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Kayıt Ekle Modal / Alanı -->
+    <div id="record-modal" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl space-y-4 shadow-2xl">
+            <h3 class="text-lg font-bold text-sky-400">Yeni Kayıt Ekle</h3>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Kayıt Türü</label>
+                <select id="rec-type" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white">
+                    <option value="Periyodik Bakım">Periyodik Bakım</option>
+                    <option value="Arıza Bildirimi">Arıza Bildirimi</option>
+                    <option value="Mekanik Müdahale">Mekanik Müdahale</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Açıklama</label>
+                <textarea id="rec-desc" rows="3" placeholder="Yapılan işlemi veya arızayı yazın..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500"></textarea>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Değişen Parçalar / Not</label>
+                <input type="text" id="rec-parts" placeholder="Örn: Rulman, Kayış (Yoksa boş bırakın)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeAddRecordModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2.5 rounded-lg text-sm transition">İptal</button>
+                <button onclick="submitNewRecord()" class="flex-1 bg-sky-600 hover:bg-sky-500 py-2.5 rounded-lg text-sm font-semibold transition">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://ahvsruxighjrbwbepqej.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFodnNydXhpZ2hqcmJ3YmVwcWVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1Nzk1NDQsImV4cCI6MjEwODE1NTU0NH0.WcUX2kYZGnWc-grbh5-BQTVBA0k4oGuQnVrpjh8E-sA';
+        
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        const USERS = [
+            { username: "mbendes", name: "M. Mendes (Yönetici)", role: "ALL_FACTORY" },
+            { username: "cetinkaya", name: "Çetinkaya (Yönetici)", role: "ALL_FACTORY" },
+            { username: "m_altuntas", name: "Mustafa Altuntaş", role: "ALL_FACTORY" },
+            { username: "r_sahin", name: "R. Şahin", role: "ALL_FACTORY" },
+            { username: "n_erturk", name: "N. Ertürk", role: "ALL_FACTORY" },
+            { username: "g_albayrak", name: "G. Albayrak", role: "ALL_FACTORY" },
+            { username: "g_goktas", name: "G. Göktaş", role: "IHZARAT" },
+            { username: "a_gultekin", name: "A. Gültekin", role: "IHZARAT" },
+            { username: "a_ozturk", name: "A. Öztürk", role: "IHZARAT" },
+            { username: "f_duran", name: "F. Duran", role: "IHZARAT" },
+            { username: "r_evler", name: "R. Evler", role: "IHZARAT" },
+            { username: "g_gumus", name: "G. Gümüş", role: "IHZARAT" },
+            { username: "a_aslan", name: "A. Aslan", role: "IHZARAT" },
+            { username: "m_karahan", name: "M. Karahan", role: "RING_BOBIN" },
+            { username: "m_bay", name: "M. Bay", role: "RING_BOBIN" },
+            { username: "e_candan", name: "E. Candan", role: "RING_BOBIN" },
+            { username: "l_yasar", name: "L. Yaşar", role: "RING_BOBIN" }
+        ];
+
+        const IHZARAT_KELIMELERI = ["HARMAN", "UNIFLOC", "UNICLEAN", "UNIMİX", "UNIMIX", "UNISTORE", "KONDENSER", "VSI", "TARAK", "CER", "FİTİL", "FITIL", "FT6D", "FTK", "İHZARAT", "IHZARAT", "OMEGALLAP", "E35"];
+        const RING_BOBIN_KELIMELERI = ["RING", "RİNG", "BOBIN", "BOBİN", "AUTOCONER", "OTOKON", "ORION", "SAVIO", "MURATA", "LINK", "LİNK", "PAKET", "PAKETLEME", "FİKSE", "FIKSE", "KAZAN"];
+        const KLIMA_KELIMELERI = ["KLİMA", "KLIMA", "KLM", "SANTRAL", "TELEF TOPLAMA", "PNOMOFİL", "PNOMOFIL", "KOMPRESÖR", "KOMPRESOR", "KURUTUCU"];
+
+        let currentUser = null;
+        let allMachinesCache = [];
+        let selectedMachine = null;
+        let currentCategoryFilter = 'ALL';
+
+        function normalize(str) {
+            return (str || "").trim().toLowerCase()
+                .replace(/ı/g, 'i')
+                .replace(/i/g, 'i')
+                .replace(/ğ/g, 'g')
+                .replace(/ü/g, 'u')
+                .replace(/ş/g, 's')
+                .replace(/ö/g, 'o')
+                .replace(/ç/g, 'c');
+        }
+
+        async function handleLogin() {
+            const rawInput = document.getElementById('username-input').value.trim();
+            const normInput = normalize(rawInput);
+            
+            if(!normInput) {
+                alert('Lütfen bir kullanıcı adı girin!');
+                return;
+            }
+
+            const foundUser = USERS.find(u => normalize(u.username) === normInput);
+            if(!foundUser) {
+                alert('Hatalı veya tanımlı olmayan kullanıcı adı! Lütfen listedeki geçerli bir kullanıcı adıyla giriş yapın.');
+                return;
+            }
+
+            currentUser = foundUser;
+            
+            try {
+                await supabaseClient.from('login_logs').insert([{ 
+                    username: currentUser.username, 
+                    login_time: new Date().toLocaleString('tr-TR') 
+                }]);
+            } catch(e) {}
+
+            document.getElementById('user-info').innerText = currentUser.name;
+            document.getElementById('role-badge').innerText = `Rol: ${currentUser.role}`;
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.remove('hidden');
+            document.getElementById('logout-btn').classList.remove('hidden');
+
+            setupCategoryPills();
+            loadMachines();
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            selectedMachine = null;
+            allMachinesCache = [];
+            currentCategoryFilter = 'ALL';
+            
+            document.getElementById('username-input').value = '';
+            document.getElementById('detail-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.add('hidden');
+            document.getElementById('login-section').classList.remove('hidden');
+            document.getElementById('logout-btn').classList.add('hidden');
+            document.getElementById('user-info').innerText = 'Giriş Yapılmadı';
+            document.getElementById('role-badge').innerText = 'Rol: -';
+            document.getElementById('machine-list').innerHTML = '';
+        }
+
+        function setupCategoryPills() {
+            const pillsEl = document.getElementById('category-pills');
+            pillsEl.innerHTML = `<button onclick="setCategoryFilter('ALL')" class="cat-btn bg-sky-600 text-white px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition">Tümü</button>`;
+
+            let cats = [];
+            if (currentUser.role === 'IHZARAT') {
+                cats = ["Harman", "Tarak", "Cer", "Fitil", "Omegallap"];
+            } else if (currentUser.role === 'RING_BOBIN') {
+                cats = ["Ring", "Autoconer", "Fikse"];
+            } else if (currentUser.username === 'm_altuntas') {
+                cats = ["Klima", "Kompresör", "Kurutucu"];
+            } else {
+                cats = ["İhzarat", "Ring/Bobin", "Klima/Kompresör"];
+            }
+
+            cats.forEach(c => {
+                pillsEl.innerHTML += `<button onclick="setCategoryFilter('${c}')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition">${c}</button>`;
+            });
+        }
+
+        function setCategoryFilter(cat) {
+            currentCategoryFilter = cat;
+            
+            document.querySelectorAll('#category-pills button').forEach(btn => {
+                if(btn.innerText.toLowerCase() === cat.toLowerCase() || (cat === 'ALL' && btn.innerText === 'Tümü')) {
+                    btn.className = "cat-btn bg-sky-600 text-white px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition";
+                } else {
+                    btn.className = "cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition";
+                }
+            });
+
+            renderMachines(allMachinesCache);
+        }
+
+        async function loadMachines() {
+            const listEl = document.getElementById('machine-list');
+            listEl.innerHTML = '<p class="text-center text-slate-400 py-4">Makineler yükleniyor...</p>';
+
+            const { data, error } = await supabaseClient.from('machines').select('*').order('id', { ascending: true });
+            if(error) {
+                listEl.innerHTML = '<p class="text-red-400 text-center">Veriler çekilemedi!</p>';
+                return;
+            }
+            allMachinesCache = data || [];
+            renderMachines(allMachinesCache);
+        }
+
+        function filterMachinesForUser(machines) {
+            if (!currentUser) return [];
+            if (currentUser.role === 'ALL_FACTORY' && currentUser.username !== 'm_altuntas') return machines;
+
+            return machines.filter(m => {
+                const fullText = `${m.name || ''} ${m.code || ''} ${m.brand || ''} ${m.machine_type || ''} ${m.location || ''}`;
+                const normText = normalize(fullText);
+
+                if (currentUser.username === 'm_altuntas') {
+                    return KLIMA_KELIMELERI.some(w => normText.includes(normalize(w))) || normText.includes('klima') || normText.includes('komp') || normText.includes('kurutucu');
+                }
+
+                if (currentUser.role === 'IHZARAT') {
+                    const isKlimaOrPnm = KLIMA_KELIMELERI.some(w => normText.includes(normalize(w)));
+                    if (isKlimaOrPnm) return false;
+
+                    return IHZARAT_KELIMELERI.some(w => normText.includes(normalize(w)));
+                } else if (currentUser.role === 'RING_BOBIN') {
+                    return RING_BOBIN_KELIMELERI.some(w => normText.includes(normalize(w)));
+                }
+                return true;
+            });
+        }
+
+        function renderMachines(machines) {
+            const listEl = document.getElementById('machine-list');
+            const searchVal = normalize(document.getElementById('search-input').value);
+
+            let allowed = filterMachinesForUser(machines);
+
+            if (currentCategoryFilter !== 'ALL') {
+                const catNorm = normalize(currentCategoryFilter);
+                allowed = allowed.filter(m => {
+                    const text = normalize(`${m.name || ''} ${m.code || ''} ${m.machine_type || ''} ${m.location || ''}`);
+                    
+                    if (catNorm === 'fitil') {
+                        return text.includes('fitil') || text.includes('fıtıl') || text.includes('ftk') || text.includes('fit') || text.includes('ft6d') || text.includes('ft');
+                    }
+                    if (catNorm === 'harman') {
+                        return text.includes('harman') || text.includes('unifloc') || text.includes('uniclean') || text.includes('unimix');
+                    }
+                    if (catNorm === 'tarak') {
+                        return (text.includes('tarak') || text.includes('carding')) && !text.includes('klima');
+                    }
+                    if (catNorm === 'cer') {
+                        return (text.includes('cer') || text.includes('drawframe')) && !text.includes('klima');
+                    }
+                    if (catNorm === 'omegallap') {
+                        return text.includes('omegallap') || text.includes('omega') || text.includes('e35');
+                    }
+                    
+                    return text.includes(catNorm);
+                });
+            }
+
+            if (searchVal) {
+                allowed = allowed.filter(m => 
+                    normalize(m.name).includes(searchVal) || 
+                    normalize(m.code).includes(searchVal) || 
+                    normalize(m.machine_type).includes(searchVal)
+                );
+            }
+
+            listEl.innerHTML = '';
+            if(allowed.length === 0) {
+                listEl.innerHTML = '<p class="text-center text-slate-500 py-4">Gösterilecek makine bulunamadı.</p>';
+                return;
+            }
+
+            allowed.forEach(machine => {
+                listEl.innerHTML += `
+                    <div onclick="openMachineDetail(${machine.id})" class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center shadow hover:border-sky-500 transition cursor-pointer">
+                        <div>
+                            <h3 class="font-bold text-sky-400">${machine.code || machine.name}</h3>
+                            <p class="text-xs text-slate-400">${machine.machine_type || 'Genel'} - ${machine.location || 'İplik-6'}</p>
+                        </div>
+                        <span class="bg-slate-700 text-xs px-2.5 py-1 rounded-full text-slate-300">Seç →</span>
+                    </div>
+                `;
+            });
+        }
+
+        function filterMachineList() {
+            renderMachines(allMachinesCache);
+        }
+
+        async function openMachineDetail(machineId) {
+            selectedMachine = allMachinesCache.find(m => m.id === machineId);
+            if(!selectedMachine) return;
+
+            document.getElementById('dashboard-section').classList.add('hidden');
+            document.getElementById('detail-section').classList.remove('hidden');
+
+            document.getElementById('detail-machine-title').innerText = selectedMachine.code || selectedMachine.name;
+            document.getElementById('detail-machine-info').innerText = `${selectedMachine.machine_type || 'Genel'} | Konum: ${selectedMachine.location || 'İplik-6'}`;
+
+            loadRecordsForMachine();
+        }
+
+        function backToDashboard() {
+            selectedMachine = null;
+            document.getElementById('detail-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.remove('hidden');
+        }
+
+        async function loadRecordsForMachine() {
+            const recListEl = document.getElementById('records-list');
+            recListEl.innerHTML = '<p class="text-center text-slate-400 py-4">Kayıtlar yükleniyor...</p>';
+
+            const mCode = selectedMachine.code || selectedMachine.name;
+            const mId = selectedMachine.id;
+
+            const { data, error } = await supabaseClient
+                .from('maintenance_records')
+                .select('*')
+                .or(`machine_id.eq.${mId},description.ilike.*[${mCode}]*`)
+                .order('id', { ascending: false })
+                .limit(20);
+
+            if(error) {
+                recListEl.innerHTML = '<p class="text-red-400 text-center">Kayıtlar yüklenirken hata oluştu.</p>';
+                return;
+            }
+
+            recListEl.innerHTML = '';
+            if(!data || data.length === 0) {
+                recListEl.innerHTML = '<p class="text-center text-slate-500 py-4">Bu makineye ait geçmiş kayıt bulunamadı.</p>';
+                return;
+            }
+
+            data.forEach(rec => {
+                recListEl.innerHTML += `
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-1 shadow">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-sky-400 font-semibold">${rec.record_type || 'Bakım'}</span>
+                            <span class="text-slate-400">${rec.record_date || ''}</span>
+                        </div>
+                        <p class="text-sm text-slate-200 mt-1">${rec.description}</p>
+                        <p class="text-xs text-slate-400 border-t border-slate-700/50 pt-1 mt-1">Parça: ${rec.parts_replaced || '-'} | Teknisyen: ${rec.technician || '-'}</p>
+                    </div>
+                `;
+            });
+        }
+
+        function openAddRecordModal() {
+            document.getElementById('record-modal').classList.remove('hidden');
+        }
+
+        function closeAddRecordModal() {
+            document.getElementById('record-modal').classList.add('hidden');
+        }
+
+        async function submitNewRecord() {
+            const type = document.getElementById('rec-type').value;
+            const desc = document.getElementById('rec-desc').value.trim();
+            const parts = document.getElementById('rec-parts').value.trim();
+            
+            if(!desc) {
+                alert('Lütfen bir açıklama girin!');
+                return;
+            }
+
+            const mCode = selectedMachine.code || selectedMachine.name;
+            const fullDesc = `[${mCode}] ${desc}`;
+            const fullParts = parts ? `${mCode} | ${parts}` : '-';
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            const { error } = await supabaseClient.from('maintenance_records').insert([{
+                machine_id: selectedMachine.id,
+                record_type: type,
+                description: fullDesc,
+                parts_replaced: fullParts,
+                technician: currentUser.name,
+                record_date: todayStr
+            }]);
+
+            if(error) {
+                alert('Kayıt eklenirken hata oluştu!');
+                console.error(error);
+                return;
+            }
+
+            closeAddRecordModal();
+            document.getElementById('rec-desc').value = '';
+            document.getElementById('rec-parts').value = '';
+            loadRecordsForMachine();
+        }
+
+        // Service Worker Kaydı
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW hatası:', err));
+        }
+    </script>
+</body>
+</html>
