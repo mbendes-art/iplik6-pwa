@@ -236,7 +236,7 @@
             if (currentUser.role === 'IHZARAT') {
                 cats = ["Harman", "Tarak", "Cer", "Fitil", "Omegallap"];
             } else if (currentUser.role === 'RING_BOBIN') {
-                cats = ["Ring", "Bobin", "Paketleme"]; // Paketleme sekmesi eklendi
+                cats = ["Ring", "Bobin", "Paketleme"];
             } else if (currentUser.username === 'm_altuntas') {
                 cats = ["Klima", "Kompresör", "Kurutucu"];
             } else {
@@ -366,14 +366,13 @@
                     if (catNorm === 'omegallap') {
                         return text.includes('omegallap') || text.includes('omega') || text.includes('e35');
                     }
-                    // Bobin sekmesinde sadece BOBİN makineleri yer alacak
+                    // Bobin sekmesi için hem 'bobin' hem de 'q-pro' terimleri kapsandı
                     if (catNorm === 'bobin') {
-                        return text.includes('bobin');
+                        return text.includes('bobin') || text.includes('q-pro');
                     }
                     if (catNorm === 'ring') {
                         return text.includes('ring');
                     }
-                    // Paketleme sekmesi sadece paketleme makinesini gösterecek
                     if (catNorm === 'paketleme') {
                         return text.includes('paketleme') || text.includes('paket');
                     }
