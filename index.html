@@ -20,6 +20,7 @@
             <p id="role-badge" class="text-xs text-slate-400">Rol: -</p>
         </div>
         <div class="flex items-center gap-2">
+            <button onclick="hardResetApp()" class="bg-amber-600/20 text-amber-400 border border-amber-500/30 text-xs px-2.5 py-1 rounded font-medium">🧹 Önbelleği Temizle</button>
             <span id="user-info" class="text-xs text-slate-300">Giriş Yapılmadı</span>
             <button id="logout-btn" onclick="handleLogout()" class="hidden bg-red-600/20 text-red-400 border border-red-500/30 text-xs px-2 py-1 rounded">Çıkış</button>
         </div>
@@ -35,7 +36,6 @@
                 <div>
                     <label class="block text-xs text-slate-400 mb-1">Kullanıcı Adı</label>
                     <input type="text" id="username-input" list="user-suggestions" oninput="filterUserSuggestions()" placeholder="örn: a_aslan, g_goktas" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-sky-500">
-                    <!-- mbendes hariç dinamik öneri listesi -->
                     <datalist id="user-suggestions"></datalist>
                 </div>
                 <button onclick="handleLogin()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-3 rounded-lg transition shadow">Giriş Yap</button>
@@ -45,7 +45,7 @@
         <!-- Dashboard Section -->
         <div id="dashboard-section" class="hidden space-y-4">
             <div class="flex justify-between items-center">
-                <h2 class="text-lg font-semibold">Makine Listesi</h2>
+                <h2 id="section-title" class="text-lg font-semibold">Makine Listesi</h2>
                 <button onclick="loadMachines()" class="bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg text-sky-400">Yenile</button>
             </div>
             
@@ -53,8 +53,8 @@
             <input type="text" id="search-input" oninput="filterMachineList()" placeholder="Makine ara (örn: bobin, ring)..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
 
             <!-- Hızlı Kategori Filtre Butonları -->
-            <div id="category-pills" class="flex gap-2 overflow-x-auto pb-1 text-xs">
-                <button onclick="setCategoryFilter('ALL')" class="cat-btn bg-sky-600 text-white px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition">Tümü</button>
+            <div id="category-pills" class="grid grid-cols-2 gap-2 text-xs">
+                <button onclick="setCategoryFilter('ALL', 'machines')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2">Tümü</button>
             </div>
 
             <div id="machine-list" class="space-y-3 pb-6">
@@ -71,11 +71,10 @@
                 <p id="detail-machine-info" class="text-xs text-slate-400 mt-1">Tür / Konum</p>
             </div>
 
-            <!-- Yeni Kayıt Ekle Butonu -->
             <button onclick="openAddRecordModal()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow">➕ Yeni Bakım / Arıza Kaydı Ekle</button>
 
             <div class="flex justify-between items-center mt-2">
-                <h3 class="text-sm font-semibold text-slate-300">Geçmiş Kayıtlar</h3>
+                <h3 class="text-sm font-semibold text-slate-300">Tüm Geçmiş Kayıtlar</h3>
             </div>
 
             <div id="records-list" class="space-y-3 pb-6">
@@ -85,7 +84,7 @@
 
     </main>
 
-    <!-- Kayıt Ekle Modal / Alanı -->
+    <!-- Kayıt Ekle Modal -->
     <div id="record-modal" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl space-y-4 shadow-2xl">
             <h3 class="text-lg font-bold text-sky-400">Yeni Kayıt Ekle</h3>
@@ -138,14 +137,11 @@
             { username: "l_yasar", name: "L. Yaşar", role: "RING_BOBIN" }
         ];
 
-        const IHZARAT_KELIMELERI = ["HARMAN", "UNIFLOC", "UNICLEAN", "UNIMİX", "UNIMIX", "UNISTORE", "KONDENSER", "VSI", "TARAK", "CER", "FİTİL", "FITIL", "FT6D", "FTK", "İHZARAT", "IHZARAT", "OMEGALLAP", "E35"];
-        const RING_BOBIN_KELIMELERI = ["RING", "RİNG", "BOBIN", "BOBİN", "PAKET", "PAKETLEME", "Q-PRO"];
-        const KLIMA_KELIMELERI = ["KLİMA", "KLIMA", "KLM", "SANTRAL", "TELEF TOPLAMA", "PNOMOFİL", "PNOMOFIL", "KOMPRESÖR", "KOMPRESOR", "KURUTUCU"];
-
         let currentUser = null;
         let allMachinesCache = [];
         let selectedMachine = null;
         let currentCategoryFilter = 'ALL';
+        let activeTableName = 'machines';
 
         function normalize(str) {
             return (str || "").trim().toLowerCase()
@@ -158,7 +154,6 @@
                 .replace(/ç/g, 'c');
         }
 
-        // Giriş yaparken mbendes hariç diğer kullanıcıların harfe göre öngörülmesi (datalist doldurma)
         function filterUserSuggestions() {
             const rawVal = document.getElementById('username-input').value.trim();
             const datalistEl = document.getElementById('user-suggestions');
@@ -188,7 +183,7 @@
 
             const foundUser = USERS.find(u => normalize(u.username) === normInput);
             if(!foundUser) {
-                alert('Hatalı veya tanımlı olmayan kullanıcı adı! Lütfen geçerli bir kullanıcı adıyla giriş yapın.');
+                alert('Hatalı veya tanımlı olmayan kullanıcı adı!');
                 return;
             }
 
@@ -216,6 +211,7 @@
             selectedMachine = null;
             allMachinesCache = [];
             currentCategoryFilter = 'ALL';
+            activeTableName = 'machines';
             
             document.getElementById('username-input').value = '';
             document.getElementById('user-suggestions').innerHTML = '';
@@ -230,82 +226,179 @@
 
         function setupCategoryPills() {
             const pillsEl = document.getElementById('category-pills');
-            pillsEl.innerHTML = `<button onclick="setCategoryFilter('ALL')" class="cat-btn bg-sky-600 text-white px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition">Tümü</button>`;
-
-            let cats = [];
+            pillsEl.innerHTML = '';
+            
             if (currentUser.role === 'IHZARAT') {
-                cats = ["Harman", "Tarak", "Cer", "Fitil", "Omegallap"];
+                activeTableName = "machine_ihzarat";
+                currentCategoryFilter = "İhzarat";
+                pillsEl.innerHTML = `
+                    <button onclick="setCategoryFilter('TUM_ARIZALAR', 'tum_arizalar')" class="cat-btn bg-amber-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2">⚠️ Tüm Arızalar (Kronolojik)</button>
+                    <button onclick="setCategoryFilter('İhzarat', 'machine_ihzarat')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2">İhzarat</button>
+                `;
             } else if (currentUser.role === 'RING_BOBIN') {
-                cats = ["Ring", "Bobin", "Paketleme"];
+                activeTableName = "machine_ringbobin";
+                currentCategoryFilter = "Ring/Bobin";
+                pillsEl.innerHTML = `
+                    <button onclick="setCategoryFilter('TUM_ARIZALAR', 'tum_arizalar')" class="cat-btn bg-amber-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2">⚠️ Tüm Arızalar (Kronolojik)</button>
+                    <button onclick="setCategoryFilter('Ring/Bobin', 'machine_ringbobin')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center">Ring/Bobin</button>
+                    <button onclick="setCategoryFilter('Paketleme', 'machines')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">Paketleme</button>
+                `;
             } else if (currentUser.username === 'm_altuntas') {
-                cats = ["Klima", "Kompresör", "Kurutucu"];
+                activeTableName = "klima_kompresor_grup";
+                currentCategoryFilter = "Klima/Kompresör";
+                pillsEl.innerHTML = `
+                    <button onclick="setCategoryFilter('TUM_ARIZALAR', 'tum_arizalar')" class="cat-btn bg-amber-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2">⚠️ Tüm Arızalar (Kronolojik)</button>
+                    <button onclick="setCategoryFilter('Klima/Kompresör', 'klima_kompresor_grup')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2">Klima/Kompresör</button>
+                `;
             } else {
-                cats = ["İhzarat", "Ring/Bobin", "Klima/Kompresör"];
+                pillsEl.innerHTML = `
+                    <button onclick="setCategoryFilter('TUM_ARIZALAR', 'tum_arizalar')" class="cat-btn bg-amber-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2">⚠️ Tüm Arızalar (Kronolojik)</button>
+                    <button onclick="setCategoryFilter('ALL', 'machines')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center">Tümü</button>
+                    <button onclick="setCategoryFilter('İhzarat', 'machine_ihzarat')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">İhzarat</button>
+                    <button onclick="setCategoryFilter('Ring/Bobin', 'machine_ringbobin')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">Ring/Bobin</button>
+                    <button onclick="setCategoryFilter('Paketleme', 'machines')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">Paketleme</button>
+                    <button onclick="setCategoryFilter('Klima/Kompresör', 'klima_kompresor_grup')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center col-span-2">Klima/Kompresör</button>
+                `;
             }
-
-            cats.forEach(c => {
-                pillsEl.innerHTML += `<button onclick="setCategoryFilter('${c}')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition">${c}</button>`;
-            });
         }
 
-        function setCategoryFilter(cat) {
+        async function setCategoryFilter(cat, tableName) {
+            if (currentUser && currentUser.role === 'RING_BOBIN' && tableName !== 'machine_ringbobin' && tableName !== 'machines' && tableName !== 'tum_arizalar') return;
+            if (currentUser && currentUser.role === 'IHZARAT' && tableName !== 'machine_ihzarat' && tableName !== 'tum_arizalar') return;
+
             currentCategoryFilter = cat;
+            activeTableName = tableName;
             
             document.querySelectorAll('#category-pills button').forEach(btn => {
-                if(btn.innerText.toLowerCase() === cat.toLowerCase() || (cat === 'ALL' && btn.innerText === 'Tümü')) {
-                    btn.className = "cat-btn bg-sky-600 text-white px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition";
+                const btnText = btn.innerText.trim();
+                if(normalize(btnText).includes(normalize(cat)) || (cat === 'ALL' && btnText === 'Tümü') || (cat === 'TUM_ARIZALAR' && btnText.includes('Tüm Arızalar'))) {
+                    btn.className = btn.classList.contains('col-span-2') 
+                        ? "cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2"
+                        : "cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center";
+                    if(cat === 'TUM_ARIZALAR') btn.className = "cat-btn bg-amber-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2";
                 } else {
-                    btn.className = "cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition";
+                    btn.className = btn.classList.contains('col-span-2')
+                        ? "cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center col-span-2"
+                        : "cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center";
                 }
             });
 
-            renderMachines(allMachinesCache);
+            await loadMachines();
         }
 
         async function loadMachines() {
             const listEl = document.getElementById('machine-list');
-            listEl.innerHTML = '<p class="text-center text-slate-400 py-4">Makineler yükleniyor...</p>';
+            listEl.innerHTML = '<p class="text-center text-slate-400 py-4">Yükleniyor...</p>';
 
-            const { data, error } = await supabaseClient.from('machines').select('*').order('id', { ascending: true });
-            if(error) {
-                listEl.innerHTML = '<p class="text-red-400 text-center">Veriler çekilemedi!</p>';
+            if (currentUser && currentUser.role === 'RING_BOBIN' && activeTableName !== 'tum_arizalar' && currentCategoryFilter !== 'Paketleme') {
+                activeTableName = 'machine_ringbobin';
+            } else if (currentUser && currentUser.role === 'IHZARAT' && activeTableName !== 'tum_arizalar') {
+                activeTableName = 'machine_ihzarat';
+            }
+
+            if (activeTableName === 'tum_arizalar') {
+                const { data, error } = await supabaseClient
+                    .from('maintenance_records')
+                    .select('*')
+                    .order('record_date', { ascending: false })
+                    .limit(500);
+
+                if (error) {
+                    listEl.innerHTML = '<p class="text-red-400 text-center">Arızalar yüklenirken hata oluştu.</p>';
+                    return;
+                }
+
+                listEl.innerHTML = '';
+                if (!data || data.length === 0) {
+                    listEl.innerHTML = '<p class="text-center text-slate-500 py-4">Kayıtlı arıza bulunamadı.</p>';
+                    return;
+                }
+
+                data.forEach(rec => {
+                    listEl.innerHTML += `
+                        <div onclick="openMachineFromRecord('${escapeHtml(rec.description)}')" class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-1 shadow hover:border-sky-500 transition cursor-pointer">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-amber-400 font-semibold">${rec.record_type || 'Arıza/Bakım'}</span>
+                                <span class="text-slate-400">${rec.record_date || ''}</span>
+                            </div>
+                            <p class="text-sm text-slate-200 mt-1">${rec.description}</p>
+                            <p class="text-xs text-slate-400 border-t border-slate-700/50 pt-1 mt-1">Parça: ${rec.parts_replaced || '-'} | Teknisyen: ${rec.technician || '-'}</p>
+                        </div>
+                    `;
+                });
                 return;
             }
-            allMachinesCache = data || [];
+
+            if (activeTableName === 'klima_kompresor_grup') {
+                const [compRes, dryRes, mainRes] = await Promise.all([
+                    supabaseClient.from('machine_compressors').select('*'),
+                    supabaseClient.from('machine_dryers').select('*'),
+                    supabaseClient.from('machines').select('*')
+                ]);
+
+                let comps = compRes.data || [];
+                let dries = dryRes.data || [];
+                let mains = mainRes.data || [];
+
+                comps.forEach(c => {
+                    c._sourceTable = 'machine_compressors';
+                    c._brand = 'Atlas Copco';
+                });
+                dries.forEach(d => {
+                    d._sourceTable = 'machine_dryers';
+                    d._brand = 'Atlas Copco';
+                });
+
+                let klimasAndPnms = mains.filter(m => {
+                    const txt = normalize(`${m.machine_name || m.name || ''} ${m.machine_no || m.code || ''} ${m.location || ''}`);
+                    return txt.includes('klm') || txt.includes('klima') || txt.includes('pnm') || txt.includes('pnömofil') || txt.includes('pnomofil');
+                });
+                klimasAndPnms.forEach(k => {
+                    k._sourceTable = 'machines';
+                    k._brand = 'TEMSAN';
+                });
+
+                allMachinesCache = [...comps, ...dries, ...klimasAndPnms];
+            } else {
+                const targetTable = (currentCategoryFilter === 'Paketleme') ? 'machines' : activeTableName;
+                const { data, error } = await supabaseClient.from(targetTable).select('*').range(0, 999).order('id', { ascending: true });
+                if (error) {
+                    const { data: fallbackData } = await supabaseClient.from('machines').select('*').order('id', { ascending: true });
+                    allMachinesCache = fallbackData || [];
+                } else {
+                    allMachinesCache = data || [];
+                }
+
+                if (activeTableName === 'machine_ihzarat') {
+                    const hasHarmanA = allMachinesCache.some(m => normalize(m.machine_name || m.name || '').includes('harman') && normalize(m.operation_no || m.machine_no || m.code || '').includes('a'));
+                    const hasHarmanB = allMachinesCache.some(m => normalize(m.machine_name || m.name || '').includes('harman') && normalize(m.operation_no || m.machine_no || m.code || '').includes('b'));
+
+                    if (!hasHarmanA) {
+                        allMachinesCache.unshift({ id: 9991, machine_name: 'Harman', operation_no: 'A', location: 'A', brand: 'RIETER', code: 'HARMAN-A' });
+                    }
+                    if (!hasHarmanB) {
+                        allMachinesCache.splice(1, 0, { id: 9992, machine_name: 'Harman', operation_no: 'B', location: 'B', brand: 'RIETER', code: 'HARMAN-B' });
+                    }
+                }
+
+                allMachinesCache.forEach(m => {
+                    m._sourceTable = targetTable;
+                    m._brand = m.brand || 'Rieter';
+                });
+            }
+
+            // Paketleme sekmesi filtresi
+            if (currentCategoryFilter === 'Paketleme') {
+                allMachinesCache = allMachinesCache.filter(m => {
+                    const codeVal = normalize(m.code || '');
+                    const nameVal = normalize(m.name || m.machine_name || '');
+                    return codeVal.includes('paket') || nameVal.includes('paket') || codeVal.includes('pak') || nameVal.includes('pak');
+                });
+            }
+
             renderMachines(allMachinesCache);
         }
 
-        function filterMachinesForUser(machines) {
-            if (!currentUser) return [];
-            if (currentUser.role === 'ALL_FACTORY' && currentUser.username !== 'm_altuntas') return machines;
-
-            return machines.filter(m => {
-                const fullText = `${m.name || ''} ${m.code || ''} ${m.brand || ''} ${m.machine_type || ''} ${m.location || ''}`;
-                const normText = normalize(fullText);
-
-                if (currentUser.username === 'm_altuntas') {
-                    return KLIMA_KELIMELERI.some(w => normText.includes(normalize(w))) || normText.includes('klima') || normText.includes('komp') || normText.includes('kurutucu');
-                }
-
-                if (currentUser.role === 'IHZARAT') {
-                    const isKlimaOrPnm = KLIMA_KELIMELERI.some(w => normText.includes(normalize(w)));
-                    if (isKlimaOrPnm) return false;
-
-                    return IHZARAT_KELIMELERI.some(w => normText.includes(normalize(w)));
-                } else if (currentUser.role === 'RING_BOBIN') {
-                    const isKlima = KLIMA_KELIMELERI.some(w => normText.includes(normalize(w)));
-                    const isPnm = normText.includes('pnm') || normText.includes('pnomofil') || normText.includes('pnömofil');
-                    const isFikseOrKazan = normText.includes('fikse') || normText.includes('kazan');
-
-                    if (isKlima || isPnm || isFikseOrKazan) return false;
-
-                    return RING_BOBIN_KELIMELERI.some(w => normText.includes(normalize(w)));
-                }
-                return true;
-            });
-        }
-
-        // Akıllı Sıralama: Önce Ring'ler (1-20), sonra Bobin'ler, sonra Paketleme
         function sortMachinesCustom(a, b) {
             const codeA = normalize(a.code || a.name || '');
             const codeB = normalize(b.code || b.name || '');
@@ -314,8 +407,6 @@
             const isRingB = codeB.includes('ring');
             const isBobinA = codeA.includes('bobin');
             const isBobinB = codeB.includes('bobin');
-            const isPaketA = codeA.includes('paket') || codeA.includes('q-pro');
-            const isPaketB = codeB.includes('paket') || codeB.includes('q-pro');
 
             if (isRingA && isRingB) {
                 const numA = parseInt(codeA.replace(/[^0-9]/g, '')) || 0;
@@ -333,10 +424,6 @@
             if (isBobinA) return -1;
             if (isBobinB) return 1;
 
-            if (isPaketA && isPaketB) return 0;
-            if (isPaketA) return 1;
-            if (isPaketB) return -1;
-
             return a.id - b.id;
         }
 
@@ -344,50 +431,15 @@
             const listEl = document.getElementById('machine-list');
             const searchVal = normalize(document.getElementById('search-input').value);
 
-            let allowed = filterMachinesForUser(machines);
-
-            if (currentCategoryFilter !== 'ALL') {
-                const catNorm = normalize(currentCategoryFilter);
-                allowed = allowed.filter(m => {
-                    const text = normalize(`${m.name || ''} ${m.code || ''} ${m.machine_type || ''} ${m.location || ''}`);
-                    
-                    if (catNorm === 'fitil') {
-                        return text.includes('fitil') || text.includes('ftk') || text.includes('ft');
-                    }
-                    if (catNorm === 'harman') {
-                        return text.includes('harman') || text.includes('unifloc') || text.includes('uniclean') || text.includes('unimix');
-                    }
-                    if (catNorm === 'tarak') {
-                        return (text.includes('tarak') || text.includes('carding')) && !text.includes('klima');
-                    }
-                    if (catNorm === 'cer') {
-                        return (text.includes('cer') || text.includes('drawframe')) && !text.includes('klima');
-                    }
-                    if (catNorm === 'omegallap') {
-                        return text.includes('omegallap') || text.includes('omega') || text.includes('e35');
-                    }
-                    // Bobin sekmesi için hem 'bobin' hem de 'q-pro' terimleri kapsandı
-                    if (catNorm === 'bobin') {
-                        return text.includes('bobin') || text.includes('q-pro');
-                    }
-                    if (catNorm === 'ring') {
-                        return text.includes('ring');
-                    }
-                    if (catNorm === 'paketleme') {
-                        return text.includes('paketleme') || text.includes('paket');
-                    }
-                    
-                    return text.includes(catNorm);
-                });
-            }
+            let allowed = machines;
 
             if (searchVal) {
-                allowed = allowed.filter(m => 
-                    normalize(m.name).includes(searchVal) || 
-                    normalize(m.code).includes(searchVal) || 
-                    normalize(m.machine_type).includes(searchVal)
-                );
-            } else {
+                allowed = allowed.filter(m => {
+                    const name = m.machine_name || m.name || m.code || '';
+                    const code = m.machine_no || m.serial_no || '';
+                    return normalize(name).includes(searchVal) || normalize(code).includes(searchVal);
+                });
+            } else if (activeTableName === 'machine_ringbobin' && currentCategoryFilter !== 'Paketleme') {
                 allowed.sort(sortMachinesCustom);
             }
 
@@ -397,12 +449,71 @@
                 return;
             }
 
-            allowed.forEach(machine => {
+            let compCounter = 0;
+            let dryCounter = 0;
+
+            allowed.forEach((machine, index) => {
+                let displayName = '';
+                let displayCode = '';
+                let displayLoc = machine.location || machine.operation_no || 'İplik-6';
+                let displayBrand = machine._brand || machine.brand || 'Rieter';
+
+                if (activeTableName === 'machine_ringbobin' && currentCategoryFilter !== 'Paketleme') {
+                    if (index >= 20) {
+                        let bobinIdx = (index - 20) + 1;
+                        displayName = `Bobin-${bobinIdx}`;
+                        displayBrand = 'MURATEC';
+                    } else {
+                        let ringIdx = index + 1;
+                        if (ringIdx > 20) ringIdx = 20;
+                        displayName = `Ring-${ringIdx}`;
+                        displayBrand = 'RIETER';
+                    }
+                    displayCode = machine.serial_no ? `Seri No: ${machine.serial_no}` : '';
+                } else if (machine._sourceTable === 'machine_compressors' || machine._sourceTable === 'machine_dryers') {
+                    let rawName = machine.machine_name || machine.name || machine.code || '';
+                    let normName = normalize(rawName);
+
+                    if (machine._sourceTable === 'machine_compressors') {
+                        compCounter++;
+                        if (!rawName || normName === 'kompresörler' || normName === 'kompresorler') {
+                            displayName = `Kompresör-${compCounter}`;
+                        } else {
+                            displayName = rawName;
+                        }
+                    } else if (machine._sourceTable === 'machine_dryers') {
+                        dryCounter++;
+                        if (!rawName || normName === 'kurutucular' || normName === 'kurutucu') {
+                            displayName = `Kurutucu-${dryCounter}`;
+                        } else {
+                            displayName = rawName;
+                        }
+                    }
+                    displayCode = machine.serial_no ? `Seri No: ${machine.serial_no}` : (machine.code || '');
+                } else if (activeTableName === 'machine_ihzarat') {
+                    let rawName = machine.machine_name || machine.name || 'Makine';
+                    let rawNo = machine.operation_no || machine.machine_no || machine.code || '';
+                    if (normalize(rawName).includes('harman')) {
+                        displayName = `HARMAN-${rawNo}`.toUpperCase();
+                    } else {
+                        displayName = rawNo ? `${rawName}-${rawNo}` : rawName;
+                    }
+                    displayCode = rawNo ? `İşletme No: ${rawNo}` : '';
+                } else if (currentCategoryFilter === 'Paketleme') {
+                    displayName = machine.code || machine.name || machine.machine_name || 'Paketleme Makinesi';
+                    displayCode = machine.serial_no ? `Seri No: ${machine.serial_no}` : '';
+                } else {
+                    displayName = machine.code || machine.name || machine.machine_name || 'Makine';
+                    displayCode = machine.serial_no || '';
+                }
+
+                const subInfo = displayCode ? `${displayCode} | Marka: ${displayBrand}` : `Marka: ${displayBrand}`;
+
                 listEl.innerHTML += `
                     <div onclick="openMachineDetail(${machine.id})" class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center shadow hover:border-sky-500 transition cursor-pointer">
                         <div>
-                            <h3 class="font-bold text-sky-400">${machine.code || machine.name}</h3>
-                            <p class="text-xs text-slate-400">${machine.machine_type || 'Genel'} | ${machine.location || 'İplik-6'}</p>
+                            <h3 class="font-bold text-sky-400">${displayName}</h3>
+                            <p class="text-xs text-slate-400">Konum: ${displayLoc} | ${subInfo}</p>
                         </div>
                         <span class="bg-slate-700 text-xs px-2.5 py-1 rounded-full text-slate-300">Seç →</span>
                     </div>
@@ -414,6 +525,52 @@
             renderMachines(allMachinesCache);
         }
 
+        function getMachineGeneratedName(machine, allList) {
+            let sortedList = [...allList];
+            if (activeTableName === 'machine_ringbobin' && currentCategoryFilter !== 'Paketleme') {
+                sortedList.sort(sortMachinesCustom);
+                let sortedIndex = sortedList.indexOf(machine);
+                if (sortedIndex >= 20) {
+                    let bIdx = (sortedIndex - 20) + 1;
+                    return `Bobin-${bIdx}`;
+                } else {
+                    let rIdx = sortedIndex + 1;
+                    if (rIdx > 20) rIdx = 20;
+                    return `Ring-${rIdx}`;
+                }
+            } else if (machine._sourceTable === 'machine_compressors' || machine._sourceTable === 'machine_dryers') {
+                let comps = allList.filter(m => m._sourceTable === 'machine_compressors');
+                let dries = allList.filter(m => m._sourceTable === 'machine_dryers');
+                
+                if (machine._sourceTable === 'machine_compressors') {
+                    let pos = comps.indexOf(machine) + 1;
+                    let rawName = machine.machine_name || machine.name || machine.code || '';
+                    let normName = normalize(rawName);
+                    if (!rawName || normName === 'kompresörler' || normName === 'kompresorler') {
+                        return `Kompresör-${pos}`;
+                    }
+                    return rawName;
+                } else {
+                    let pos = dries.indexOf(machine) + 1;
+                    let rawName = machine.machine_name || machine.name || machine.code || '';
+                    let normName = normalize(rawName);
+                    if (!rawName || normName === 'kurutucular' || normName === 'kurutucu') {
+                        return `Kurutucu-${pos}`;
+                    }
+                    return rawName;
+                }
+            } else if (activeTableName === 'machine_ihzarat') {
+                const rawName = machine.machine_name || machine.name || '';
+                const rawNo = machine.operation_no || machine.machine_no || machine.code || '';
+                if (normalize(rawName).includes('harman')) {
+                    return `HARMAN-${rawNo}`.toUpperCase();
+                }
+                return rawNo ? `${rawName}-${rawNo}` : rawName;
+            } else {
+                return machine.code || machine.name || '';
+            }
+        }
+
         async function openMachineDetail(machineId) {
             selectedMachine = allMachinesCache.find(m => m.id === machineId);
             if(!selectedMachine) return;
@@ -421,8 +578,10 @@
             document.getElementById('dashboard-section').classList.add('hidden');
             document.getElementById('detail-section').classList.remove('hidden');
 
-            document.getElementById('detail-machine-title').innerText = selectedMachine.code || selectedMachine.name;
-            document.getElementById('detail-machine-info').innerText = `${selectedMachine.machine_type || 'Genel'} | Konum: ${selectedMachine.location || 'İplik-6'}`;
+            let titleStr = getMachineGeneratedName(selectedMachine, allMachinesCache);
+
+            document.getElementById('detail-machine-title').innerText = titleStr;
+            document.getElementById('detail-machine-info').innerText = `Konum: ${selectedMachine.location || selectedMachine.operation_no || 'İplik-6'}`;
 
             loadRecordsForMachine();
         }
@@ -437,15 +596,20 @@
             const recListEl = document.getElementById('records-list');
             recListEl.innerHTML = '<p class="text-center text-slate-400 py-4">Kayıtlar yükleniyor...</p>';
 
-            const mCode = selectedMachine.code || selectedMachine.name;
             const mId = selectedMachine.id;
+            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache);
 
-            const { data, error } = await supabaseClient
-                .from('maintenance_records')
-                .select('*')
-                .or(`machine_id.eq.${mId},description.ilike.*[${mCode}]*`)
-                .order('id', { ascending: false })
-                .limit(20);
+            // KESİN ÇÖZÜM: Hem gerçek machine_id eşleşmesini hem de açıklama içindeki [Makine Adı] etiketini birlikte sorgulayarak tam izolasyon sağlıyoruz
+            let query = supabaseClient.from('maintenance_records').select('*');
+            
+            if (mId > 9000) {
+                query = query.ilike('description', `%[${mCode}]%`);
+            } else {
+                // Hem machine_id ile hem de ilike ile tam eşleşenleri veya machine_id'si doğrudan uyanları getir
+                query = query.or(`machine_id.eq.${mId},description.ilike.%[${mCode}]%`);
+            }
+
+            const { data, error } = await query.order('record_date', { ascending: false }).limit(200);
 
             if(error) {
                 recListEl.innerHTML = '<p class="text-red-400 text-center">Kayıtlar yüklenirken hata oluştu.</p>';
@@ -453,12 +617,19 @@
             }
 
             recListEl.innerHTML = '';
-            if(!data || data.length === 0) {
+            // Ekstra güvenlik filtresi: Sadece gerçekten o makinenin etiketini taşıyan veya ID'si uyan kayıtları süz
+            let filteredRecords = (data || []).filter(rec => {
+                const desc = normalize(rec.description || '');
+                const targetTag = normalize(`[${mCode}]`);
+                return rec.machine_id === mId || desc.includes(targetTag);
+            });
+
+            if(filteredRecords.length === 0) {
                 recListEl.innerHTML = '<p class="text-center text-slate-500 py-4">Bu makineye ait geçmiş kayıt bulunamadı.</p>';
                 return;
             }
 
-            data.forEach(rec => {
+            filteredRecords.forEach(rec => {
                 recListEl.innerHTML += `
                     <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-1 shadow">
                         <div class="flex justify-between items-center text-xs">
@@ -472,7 +643,76 @@
             });
         }
 
-        function openAddRecordModal() {
+        function escapeHtml(text) {
+            return (text || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        async function openMachineFromRecord(desc) {
+            const match = desc.match(/\[(.*?)\]/);
+            if (!match) {
+                alert('Bu kayıtta makine etiketi bulunamadı.');
+                return;
+            }
+            const tag = match[1].trim();
+
+            const [ringRes, ihzaratRes, mainRes, compRes, dryRes] = await Promise.all([
+                supabaseClient.from('machine_ringbobin').select('*'),
+                supabaseClient.from('machine_ihzarat').select('*'),
+                supabaseClient.from('machines').select('*'),
+                supabaseClient.from('machine_compressors').select('*'),
+                supabaseClient.from('machine_dryers').select('*')
+            ]);
+
+            let factoryMachines = [
+                ...(ringRes.data || []).map(m => { m._sourceTable = 'machine_ringbobin'; return m; }),
+                ...(ihzaratRes.data || []).map(m => { m._sourceTable = 'machine_ihzarat'; return m; }),
+                ...(mainRes.data || []).map(m => { m._sourceTable = 'machines'; return m; }),
+                ...(compRes.data || []).map(m => { m._sourceTable = 'machine_compressors'; return m; }),
+                ...(dryRes.data || []).map(m => { m._sourceTable = 'machine_dryers'; return m; })
+            ];
+
+            if (!factoryMachines.some(m => m.id === 9991)) factoryMachines.push({ id: 9991, machine_name: 'Harman', operation_no: 'A', code: 'HARMAN-A', _sourceTable: 'machine_ihzarat' });
+            if (!factoryMachines.some(m => m.id === 9992)) factoryMachines.push({ id: 9992, machine_name: 'Harman', operation_no: 'B', code: 'HARMAN-B', _sourceTable: 'machine_ihzarat' });
+
+            allMachinesCache = factoryMachines;
+            activeTableName = 'machines';
+
+            let found = null;
+            for (let m of factoryMachines) {
+                let genName = getMachineGeneratedNameForSearch(m, factoryMachines);
+                if (normalize(genName) === normalize(tag) || normalize(m.code || '') === normalize(tag)) {
+                    found = m;
+                    break;
+                }
+            }
+
+            if (found) {
+                activeTableName = found._sourceTable || 'machines';
+                openMachineDetail(found.id);
+            } else {
+                alert(`"${tag}" makinesi sistemde eşleştirilemedi.`);
+            }
+        }
+
+        function getMachineGeneratedNameForSearch(machine, allList) {
+            let code = normalize(machine.code || machine.name || '');
+            if (code.includes('ring') || code.includes('bobin') || activeTableName === 'machine_ringbobin') {
+                let rbList = allList.filter(m => m._sourceTable === 'machine_ringbobin');
+                rbList.sort(sortMachinesCustom);
+                let idx = rbList.indexOf(machine);
+                if (idx >= 20) return `Bobin-${(idx - 20) + 1}`;
+                if (idx >= 0) return `Ring-${idx + 1}`;
+            }
+            if (machine._sourceTable === 'machine_ihzarat' || normalize(machine.machine_name || '').includes('harman')) {
+                let rName = machine.machine_name || machine.name || '';
+                let rNo = machine.operation_no || machine.machine_no || machine.code || '';
+                if (normalize(rName).includes('harman')) return `HARMAN-${rNo}`.toUpperCase();
+                return rNo ? `${rName}-${rNo}` : rName;
+            }
+            return machine.code || machine.name || machine.machine_name || '';
+        }
+
+        openAddRecordModal = function() {
             document.getElementById('record-modal').classList.remove('hidden');
         }
 
@@ -490,13 +730,14 @@
                 return;
             }
 
-            const mCode = selectedMachine.code || selectedMachine.name;
+            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache);
+
             const fullDesc = `[${mCode}] ${desc}`;
             const fullParts = parts ? `${mCode} | ${parts}` : '-';
             const todayStr = new Date().toISOString().split('T')[0];
 
             const { error } = await supabaseClient.from('maintenance_records').insert([{
-                machine_id: selectedMachine.id,
+                machine_id: selectedMachine.id > 9000 ? null : selectedMachine.id,
                 record_type: type,
                 description: fullDesc,
                 parts_replaced: fullParts,
@@ -516,9 +757,34 @@
             loadRecordsForMachine();
         }
 
-        // Service Worker Kaydı
+        // 🧹 Manuel Önbellek ve Service Worker Sıfırlama Butonu Fonksiyonu
+        async function hardResetApp() {
+            if (confirm("Önbellek temizlenecek ve en güncel sürüm yüklenecek. Emin misiniz?")) {
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for(let registration of registrations) {
+                        await registration.unregister();
+                    }
+                }
+                if ('caches' in window) {
+                    const names = await caches.keys();
+                    for (let name of names) {
+                        await caches.delete(name);
+                    }
+                }
+                localStorage.clear();
+                alert("Önbellek başarıyla temizlendi! Sayfa yenileniyor...");
+                window.location.reload(true);
+            }
+        }
+
+        // Otomatik önbellek denetimi
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW hatası:', err));
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+            });
         }
     </script>
 </body>
