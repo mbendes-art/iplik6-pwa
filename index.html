@@ -184,28 +184,25 @@
         let activeTableName = 'machines';
         let selectedMachineIds = new Set();
 
-        // 🛡️ KESİN GERİ TUŞU ENGELİ: Sol ok basıldığında uygulamanın dışına çıkılmasını veya oturumun düşmesini tamamen bloke eder
-        function initHistoryLock() {
-            window.history.pushState({ locked: true }, document.title, window.location.href);
-            window.addEventListener('popstate', function (event) {
-                window.history.pushState({ locked: true }, document.title, window.location.href);
-                if (currentUser) {
-                    const detailSec = document.getElementById('detail-section');
-                    const recordModal = document.getElementById('record-modal');
-                    const bulkModal = document.getElementById('bulk-modal');
+        // 🛡️ Geri Tuşu Yönetimi: Modal açıksa kapatır, detay sayfasındaysa listeye döner. Ana sayfada serbesttir.
+        window.history.pushState({ page: 'main' }, '', '');
+        window.addEventListener('popstate', function (event) {
+            window.history.pushState({ page: 'main' }, '', '');
+            if (currentUser) {
+                const detailSec = document.getElementById('detail-section');
+                const recordModal = document.getElementById('record-modal');
+                const bulkModal = document.getElementById('bulk-modal');
 
-                    if (!recordModal.classList.contains('hidden')) {
-                        closeAddRecordModal();
-                    } else if (!bulkModal.classList.contains('hidden')) {
-                        closeBulkModal();
-                    } else if (!detailSec.classList.contains('hidden')) {
-                        backToDashboard();
-                    }
-                    // Kullanıcı ana sayfada veya giriş ekranındayken sol ok hiçbir şey yapmaz, oturumu korur
+                if (!recordModal.classList.contains('hidden')) {
+                    closeAddRecordModal();
+                } else if (!bulkModal.classList.contains('hidden')) {
+                    closeBulkModal();
+                } else if (!detailSec.classList.contains('hidden')) {
+                    backToDashboard();
                 }
-            });
-        }
-        initHistoryLock();
+                // Ana sayfada sol ok normal işlevini yapar, çıkış için sadece Çıkış butonu kullanılır
+            }
+        });
 
         function normalize(str) {
             return (str || "").trim().toLowerCase()
