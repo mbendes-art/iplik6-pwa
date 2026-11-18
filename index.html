@@ -38,7 +38,6 @@
         
         <!-- Login Section -->
         <div id="login-section" class="space-y-4 mt-4">
-            <!-- GİRİŞ EKRANINDAKİ İŞLETME BİLDİRİM GİRİŞİ BUTONU -->
             <button onclick="openOperatorFaults()" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition text-base border border-amber-400">
                 <span>⚠️</span> <span>İŞLETME BİLDİRİM GİRİŞİ</span>
             </button>
@@ -58,7 +57,6 @@
 
         <!-- Dashboard Section -->
         <div id="dashboard-section" class="hidden space-y-4">
-            <!-- İÇ EKRANDAKİ TÜM ARIZALAR BUTONU -->
             <button onclick="setCategoryFilter('TUM_ARIZALAR', 'tum_arizalar')" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition text-base border border-amber-400">
                 <span>📋</span> <span>TÜM ARIZALARI GÖSTER</span>
             </button>
@@ -138,6 +136,7 @@
                     <option value="Periyodik Bakım">Periyodik Bakım</option>
                     <option value="Arıza Bildirimi" selected>Arıza Bildirimi</option>
                     <option value="Mekanik Müdahale">Mekanik Müdahale</option>
+                    <option value="Arıza Onarımı">Arıza Onarımı</option>
                 </select>
             </div>
             <div>
@@ -166,6 +165,7 @@
                     <option value="Periyodik Bakım">Periyodik Bakım</option>
                     <option value="Arıza Bildirimi">Arıza Bildirimi</option>
                     <option value="Mekanik Müdahale">Mekanik Müdahale</option>
+                    <option value="Arıza Onarımı">Arıza Onarımı</option>
                 </select>
             </div>
             <div>
@@ -194,6 +194,7 @@
                     <option value="Periyodik Bakım">Periyodik Bakım</option>
                     <option value="Arıza Bildirimi" selected>Arıza Bildirimi</option>
                     <option value="Mekanik Müdahale">Mekanik Müdahale</option>
+                    <option value="Arıza Onarımı">Arıza Onarımı</option>
                 </select>
             </div>
             <div>
@@ -760,7 +761,7 @@
 
                 let mCode = getMachineGeneratedName(machine, allMachinesCache);
                 const fullDesc = `[IPL6-${mCode}] ${desc}`;
-                const fullParts = parts ? `IPL6-${mCode} | ${parts}` : '-';
+                const fullParts = parts ? `${mCode} | ${parts}` : '-';
 
                 const { error } = await supabaseClient.from('maintenance_records').insert([{
                     machine_id: machine.id > 9000 ? null : machine.id,
@@ -788,27 +789,33 @@
         }
 
         function getMachineGeneratedName(machine, allList) {
-            if (activeTableName === 'machine_ringbobin') {
+            let baseName = "";
+            if (machine._sourceTable === 'machine_ringbobin' || (!machine._sourceTable && activeTableName === 'machine_ringbobin')) {
                 let nameVal = (machine.machine_name || '').trim();
-                if (nameVal) return nameVal;
-                return machine.id <= 20 ? `RING-${machine.id}` : `BOBİN-${machine.id - 20}`;
-            } else if (activeTableName === 'machine_ihzarat') {
+                if (nameVal) baseName = nameVal;
+                else baseName = machine.id <= 20 ? `RING-${machine.id}` : `BOBİN-${machine.id - 20}`;
+            } else if (machine._sourceTable === 'machine_ihzarat' || (!machine._sourceTable && activeTableName === 'machine_ihzarat')) {
                 let rawName = machine.machine_name || machine.name || '';
                 let rawNo = machine.operation_no || machine.machine_no || machine.code || '';
-                return rawNo ? `${rawName}-${rawNo}` : rawName;
+                baseName = rawNo ? `${rawName}-${rawNo}` : rawName;
             } else if (machine._sourceTable === 'machine_compressors' || machine._sourceTable === 'machine_dryers') {
                 let comps = allList.filter(m => m._sourceTable === 'machine_compressors');
                 let dries = allList.filter(m => m._sourceTable === 'machine_dryers');
                 if (machine._sourceTable === 'machine_compressors') {
                     let pos = comps.indexOf(machine) + 1;
-                    return `KOMPRESÖR-${pos}`;
+                    baseName = `KOMPRESÖR-${pos}`;
                 } else {
                     let pos = dries.indexOf(machine) + 1;
-                    return `KURUTUCU-${pos}`;
+                    baseName = `KURUTUCU-${pos}`;
                 }
             } else {
-                return machine.code || machine.name || machine.machine_name || '';
+                baseName = machine.code || machine.name || machine.machine_name || '';
             }
+
+            if (normalize(baseName).startsWith('ipl6-')) {
+                return baseName.toUpperCase();
+            }
+            return baseName.toUpperCase();
         }
 
         async function openMachineDetail(machineId) {
@@ -837,6 +844,7 @@
             recListEl.innerHTML = '<p class="text-center text-slate-400 py-4">Kayıtlar yükleniyor...</p>';
 
             let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); 
+            let normMCode = normalize(mCode).replace(/[-\s]/g, '');
 
             const { data, error } = await supabaseClient
                 .from('maintenance_records')
@@ -858,12 +866,9 @@
                 const matchTag = descNorm.match(/\[(.*?)\]/);
                 if (matchTag) {
                     let tagContent = normalize(matchTag[1]).replace(/[-\s]/g, '');
-                    let target1 = normalize(mCode).replace(/[-\s]/g, '');
-                    let target2 = normalize("ipl6" + mCode).replace(/[-\s]/g, '');
-
-                    return tagContent === target1 || tagContent === target2;
+                    // Birebir eşitlik kontrolü (örn: bobin13 ile bobin1 veya bobin13 ile bobin13)
+                    return tagContent === normMCode || tagContent === normalize("ipl6" + mCode).replace(/[-\s]/g, '');
                 }
-
                 return false;
             });
 
@@ -889,7 +894,7 @@
                         actionBtnsHtml += `<button onclick="openEditRecordModal(${rec.id})" class="text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded text-xs transition">Düzenle</button>`;
                     }
                     if (canDelete) {
-                        actionBtnsHtml += `<button onclick="deleteRecord(${rec.id})" class="text-red-400 hover:text-red-300 bg-red-500/10 bg-red-500/20 px-2 py-0.5 rounded text-xs transition">Sil</button>`;
+                        actionBtnsHtml += `<button onclick="deleteRecord(${rec.id})" class="text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-0.5 rounded text-xs transition">Sil</button>`;
                     }
                     actionBtnsHtml += `</div>`;
                 }
@@ -1003,28 +1008,35 @@
                 return;
             }
             const tag = match[1].trim();
+            const normTag = normalize(tag).replace(/[-\s]/g, '');
 
-            const [ringRes, ihzaratRes, compRes, dryRes] = await Promise.all([
+            const [ringRes, ihzaratRes, compRes, dryRes, mainRes] = await Promise.all([
                 supabaseClient.from('machine_ringbobin').select('*'),
                 supabaseClient.from('machine_ihzarat').select('*'),
                 supabaseClient.from('machine_compressors').select('*'),
-                supabaseClient.from('machine_dryers').select('*')
+                supabaseClient.from('machine_dryers').select('*'),
+                supabaseClient.from('machines').select('*')
             ]);
 
             let factoryMachines = [
                 ...(ringRes.data || []).map(m => { m._sourceTable = 'machine_ringbobin'; return m; }),
                 ...(ihzaratRes.data || []).map(m => { m._sourceTable = 'machine_ihzarat'; return m; }),
                 ...(compRes.data || []).map(m => { m._sourceTable = 'machine_compressors'; return m; }),
-                ...(dryRes.data || []).map(m => { m._sourceTable = 'machine_dryers'; return m; })
+                ...(dryRes.data || []).map(m => { m._sourceTable = 'machine_dryers'; return m; }),
+                ...(mainRes.data || []).map(m => { m._sourceTable = 'machines'; return m; })
             ];
 
             allMachinesCache = factoryMachines;
-            activeTableName = 'machine_ringbobin';
 
             let found = null;
             for (let m of factoryMachines) {
                 let genName = getMachineGeneratedNameForSearch(m, factoryMachines);
-                if (normalize(genName) === normalize(tag) || normalize(m.code || '') === normalize(tag)) {
+                let normGenName = normalize(genName).replace(/[-\s]/g, '');
+                let normCode = normalize(m.code || '').replace(/[-\s]/g, '');
+                let normName = normalize(m.machine_name || m.name || '').replace(/[-\s]/g, '');
+
+                // Birebir tam eşleşme kontrolü (Benzerlik yerine tam eşitlik)
+                if (normGenName === normTag || normCode === normTag || normName === normTag) {
                     found = m;
                     break;
                 }
@@ -1039,29 +1051,33 @@
         }
 
         function getMachineGeneratedNameForSearch(machine, allList) {
-            let code = normalize(machine.code || machine.name || machine.machine_name || '');
-            if (code.includes('ring') || code.includes('bobin') || activeTableName === 'machine_ringbobin') {
+            let baseName = "";
+            if (machine._sourceTable === 'machine_ringbobin' || (!machine._sourceTable && activeTableName === 'machine_ringbobin')) {
                 let nameVal = (machine.machine_name || '').trim();
-                if (nameVal) return nameVal;
-                return machine.id <= 20 ? `RING-${machine.id}` : `BOBİN-${machine.id - 20}`;
-            }
-            if (activeTableName === 'machine_ihzarat') {
-                let rName = machine.machine_name || machine.name || '';
-                let rNo = machine.operation_no || machine.machine_no || machine.code || '';
-                return rNo ? `${rName}-${rNo}` : rName;
-            }
-            if (machine._sourceTable === 'machine_compressors' || machine._sourceTable === 'machine_dryers') {
+                if (nameVal) baseName = nameVal;
+                else baseName = machine.id <= 20 ? `RING-${machine.id}` : `BOBİN-${machine.id - 20}`;
+            } else if (machine._sourceTable === 'machine_ihzarat' || (!machine._sourceTable && activeTableName === 'machine_ihzarat')) {
+                let rawName = machine.machine_name || machine.name || '';
+                let rawNo = machine.operation_no || machine.machine_no || machine.code || '';
+                baseName = rawNo ? `${rawName}-${rawNo}` : rawName;
+            } else if (machine._sourceTable === 'machine_compressors' || machine._sourceTable === 'machine_dryers') {
                 let comps = allList.filter(m => m._sourceTable === 'machine_compressors');
                 let dries = allList.filter(m => m._sourceTable === 'machine_dryers');
                 if (machine._sourceTable === 'machine_compressors') {
                     let pos = comps.indexOf(machine) + 1;
-                    return `KOMPRESÖR-${pos}`;
+                    baseName = `KOMPRESÖR-${pos}`;
                 } else {
                     let pos = dries.indexOf(machine) + 1;
-                    return `KURUTUCU-${pos}`;
+                    baseName = `KURUTUCU-${pos}`;
                 }
+            } else {
+                baseName = machine.code || machine.name || machine.machine_name || '';
             }
-            return machine.code || machine.name || machine.machine_name || '';
+
+            if (normalize(baseName).startsWith('ipl6-')) {
+                return baseName.toUpperCase();
+            }
+            return baseName.toUpperCase();
         }
 
         openAddRecordModal = function() {
@@ -1104,7 +1120,7 @@
 
                 let mCode = getMachineGeneratedName(machine, allMachinesCache);
                 const fullDesc = `[IPL6-${mCode}] ${desc}`;
-                const fullParts = parts ? `IPL6-${mCode} | ${parts}` : '-';
+                const fullParts = parts ? `${mCode} | ${parts}` : '-';
 
                 const { error } = await supabaseClient.from('maintenance_records').insert([{
                     machine_id: machine.id > 9000 ? null : machine.id,
@@ -1140,7 +1156,7 @@
             let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); 
 
             const fullDesc = `[IPL6-${mCode}] ${desc}`;
-            const fullParts = parts ? `[IPL6-${mCode}] ${parts}` : '-';
+            const fullParts = parts ? `${mCode} | ${parts}` : '-';
             const todayStr = new Date().toISOString().split('T')[0];
 
             const { error } = await supabaseClient.from('maintenance_records').insert([{
