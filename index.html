@@ -63,7 +63,7 @@
                 <button onclick="setCategoryFilter('ALL', 'machines')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2">Tümü</button>
             </div>
 
-            <!-- TOPLU İŞLEM KONTROL ÇUBUĞU (ANA SAYFADA GÖRÜNÜR) -->
+            <!-- TOPLU İŞLEM KONTROL ÇUBUĞU (ANA SAYfADA GÖRÜNÜR) -->
             <div id="bulk-action-bar" class="hidden bg-sky-900/40 border border-sky-500/40 p-3 rounded-xl flex justify-between items-center shadow-lg">
                 <span id="selected-count" class="text-xs text-sky-300 font-medium">0 makine seçildi</span>
                 <button onclick="openBulkModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-2 rounded-lg font-semibold transition shadow">⚡ Toplu Kayıt Ekle</button>
@@ -184,9 +184,10 @@
         let activeTableName = 'machines';
         let selectedMachineIds = new Set();
 
-        // 🛡️ Akıllı Geri Tuşu Yönetimi: Ana sayfada serbest, detay ve modallarda güvenli dönüş
-        window.history.pushState({ page: 'main' }, '', '');
+        // 🛡️ KESİN GEÇMİŞ KİLİDİ: Geri tuşuna basıldığında geçmiş yığınını sürekli tazeleyerek çıkışı engeller
+        history.replaceState({ page: 'app' }, document.title, window.location.href);
         window.addEventListener('popstate', function (event) {
+            history.pushState({ page: 'app' }, document.title, window.location.href);
             if (currentUser) {
                 const detailSec = document.getElementById('detail-section');
                 const recordModal = document.getElementById('record-modal');
@@ -194,16 +195,12 @@
 
                 if (!recordModal.classList.contains('hidden')) {
                     closeAddRecordModal();
-                    window.history.pushState({ page: 'main' }, '', '');
                 } else if (!bulkModal.classList.contains('hidden')) {
                     closeBulkModal();
-                    window.history.pushState({ page: 'main' }, '', '');
                 } else if (!detailSec.classList.contains('hidden')) {
                     backToDashboard();
-                    window.history.pushState({ page: 'main' }, '', '');
-                } else {
-                    // Ana sayfadayken geri tuşuna basıldığında tarayıcının varsayılan çıkışına izin verilir veya kullanıcı Çıkış butonunu kullanır
                 }
+                // Ana sayfada veya giriş ekranındayken sol ok basılsa bile geçmiş yığını korunduğu için program kapanmaz/çıkış yapmaz
             }
         });
 
@@ -720,8 +717,6 @@
             selectedMachine = allMachinesCache.find(m => m.id === machineId);
             if(!selectedMachine) return;
 
-            window.history.pushState({ page: 'detail' }, '', '');
-
             document.getElementById('dashboard-section').classList.add('hidden');
             document.getElementById('detail-section').classList.remove('hidden');
 
@@ -896,7 +891,6 @@
         }
 
         openAddRecordModal = function() {
-            window.history.pushState({ page: 'modal' }, '', '');
             document.getElementById('record-modal').classList.remove('hidden');
         }
 
@@ -909,7 +903,6 @@
                 alert('Lütfen en az bir makine seçin!');
                 return;
             }
-            window.history.pushState({ page: 'modal' }, '', '');
             document.getElementById('bulk-modal-info').innerText = `${selectedMachineIds.size} adet makineye ortak kayıt eklenecek.`;
             document.getElementById('bulk-modal').classList.remove('hidden');
         }
