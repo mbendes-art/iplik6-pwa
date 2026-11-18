@@ -10,13 +10,12 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0ea5e9">
-<style>
+    <style>
         html, body {
             overscroll-behavior-y: none;
             overscroll-behavior: none;
         }
     </style>
-   
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
 
@@ -64,6 +63,12 @@
                 <button onclick="setCategoryFilter('ALL', 'machines')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2">Tümü</button>
             </div>
 
+            <!-- TOPLU İŞLEM KONTROL ÇUBUĞU (ANA SAYFADA GÖRÜNÜR) -->
+            <div id="bulk-action-bar" class="hidden bg-sky-900/40 border border-sky-500/40 p-3 rounded-xl flex justify-between items-center shadow-lg">
+                <span id="selected-count" class="text-xs text-sky-300 font-medium">0 makine seçildi</span>
+                <button onclick="openBulkModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-2 rounded-lg font-semibold transition shadow">⚡ Toplu Kayıt Ekle</button>
+            </div>
+
             <div id="machine-list" class="space-y-3 pb-6">
                 <!-- Makineler buraya yüklenecek -->
             </div>
@@ -91,7 +96,7 @@
 
     </main>
 
-    <!-- Kayıt Ekle Modal -->
+    <!-- Kayıt Ekle Modal (Tekil) -->
     <div id="record-modal" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl space-y-4 shadow-2xl">
             <h3 class="text-lg font-bold text-sky-400">Yeni Kayıt Ekle</h3>
@@ -114,6 +119,34 @@
             <div class="flex gap-2 pt-2">
                 <button onclick="closeAddRecordModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2.5 rounded-lg text-sm transition">İptal</button>
                 <button onclick="submitNewRecord()" class="flex-1 bg-sky-600 hover:bg-sky-500 py-2.5 rounded-lg text-sm font-semibold transition">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toplu Kayıt Ekle Modal -->
+    <div id="bulk-modal" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl space-y-4 shadow-2xl">
+            <h3 class="text-lg font-bold text-sky-400">⚡ Seçilen Makinelere Toplu Kayıt</h3>
+            <p id="bulk-modal-info" class="text-xs text-slate-400"></p>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Kayıt Türü</label>
+                <select id="bulk-rec-type" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white">
+                    <option value="Periyodik Bakım">Periyodik Bakım</option>
+                    <option value="Arıza Bildirimi">Arıza Bildirimi</option>
+                    <option value="Mekanik Müdahale">Mekanik Müdahale</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Ortak Açıklama</label>
+                <textarea id="bulk-rec-desc" rows="3" placeholder="Tüm seçili makineler için ortak açıklamayı yazın..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500"></textarea>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Değişen Parçalar / Not</label>
+                <input type="text" id="bulk-rec-parts" placeholder="Örn: Filtre değişti (Yoksa boş bırakın)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeBulkModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2.5 rounded-lg text-sm transition">İptal</button>
+                <button onclick="submitBulkRecords()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-lg text-sm font-semibold transition">Toplu Kaydet</button>
             </div>
         </div>
     </div>
@@ -149,6 +182,22 @@
         let selectedMachine = null;
         let currentCategoryFilter = 'ALL';
         let activeTableName = 'machines';
+        let selectedMachineIds = new Set();
+
+        // 🛡️ Mobil Geri Tuşu (Sol Ok) Koruması: Sayfadan çıkışı engeller, detaydaysa listeye döndürür
+        history.pushState(null, null, window.location.href);
+        window.addEventListener('popstate', function (event) {
+            history.pushState(null, null, window.location.href);
+            if (currentUser) {
+                const detailSec = document.getElementById('detail-section');
+                if (!detailSec.classList.contains('hidden')) {
+                    backToDashboard();
+                } else {
+                    // Ana sayfada kazara çıkışı engellemek için onay sorabilir veya sabit tutabiliriz
+                    console.log("Geri tuşu kilitlendi.");
+                }
+            }
+        });
 
         function normalize(str) {
             return (str || "").trim().toLowerCase()
@@ -214,21 +263,25 @@
         }
 
         function handleLogout() {
-            currentUser = null;
-            selectedMachine = null;
-            allMachinesCache = [];
-            currentCategoryFilter = 'ALL';
-            activeTableName = 'machines';
-            
-            document.getElementById('username-input').value = '';
-            document.getElementById('user-suggestions').innerHTML = '';
-            document.getElementById('detail-section').classList.add('hidden');
-            document.getElementById('dashboard-section').classList.add('hidden');
-            document.getElementById('login-section').classList.remove('hidden');
-            document.getElementById('logout-btn').classList.add('hidden');
-            document.getElementById('user-info').innerText = 'Giriş Yapılmadı';
-            document.getElementById('role-badge').innerText = 'Rol: -';
-            document.getElementById('machine-list').innerHTML = '';
+            if (confirm("Oturumu kapatmak istediğinize emin misiniz?")) {
+                currentUser = null;
+                selectedMachine = null;
+                allMachinesCache = [];
+                currentCategoryFilter = 'ALL';
+                activeTableName = 'machines';
+                selectedMachineIds.clear();
+                
+                document.getElementById('username-input').value = '';
+                document.getElementById('user-suggestions').innerHTML = '';
+                document.getElementById('detail-section').classList.add('hidden');
+                document.getElementById('dashboard-section').classList.add('hidden');
+                document.getElementById('login-section').classList.remove('hidden');
+                document.getElementById('logout-btn').classList.add('hidden');
+                document.getElementById('user-info').innerText = 'Giriş Yapılmadı';
+                document.getElementById('role-badge').innerText = 'Rol: -';
+                document.getElementById('machine-list').innerHTML = '';
+                document.getElementById('bulk-action-bar').classList.add('hidden');
+            }
         }
 
         function setupCategoryPills() {
@@ -276,6 +329,8 @@
 
             currentCategoryFilter = cat;
             activeTableName = tableName;
+            selectedMachineIds.clear();
+            document.getElementById('bulk-action-bar').classList.add('hidden');
             
             document.querySelectorAll('#category-pills button').forEach(btn => {
                 const btnText = btn.innerText.trim();
@@ -307,6 +362,7 @@
             }
 
             if (activeTableName === 'tum_arizalar') {
+                document.getElementById('bulk-action-bar').classList.add('hidden');
                 const { data, error } = await supabaseClient
                     .from('maintenance_records')
                     .select('*')
@@ -320,7 +376,6 @@
 
                 let records = data || [];
 
-                // Bölüm sızıntılarını kesin olarak engellemek için etiket kontrolü (Örn: [IPL6-KLM-...])
                 if (currentUser && currentUser.role === 'IHZARAT') {
                     records = records.filter(rec => {
                         const d = normalize(rec.description || '');
@@ -329,7 +384,6 @@
                 } else if (currentUser && currentUser.role === 'RING_BOBIN') {
                     records = records.filter(rec => {
                         const d = normalize(rec.description || '');
-                        // İçinde ring veya bobin kelimesi geçecek ama başında kesinlikle "klm" veya "klima" olmayacak
                         const hasRingOrBobin = d.includes('ring') || d.includes('bobin');
                         const isKlima = d.includes('klm') || d.includes('klima');
                         return hasRingOrBobin && !isKlima;
@@ -429,7 +483,6 @@
                 });
             }
 
-            // Paketleme sekmesi filtresi
             if (currentCategoryFilter === 'Paketleme') {
                 allMachinesCache = allMachinesCache.filter(m => {
                     const codeVal = normalize(m.code || '');
@@ -521,17 +574,96 @@
                 }
 
                 const subInfo = displayCode ? `${displayCode} | Marka: ${displayBrand}` : `Marka: ${displayBrand}`;
+                const isChecked = selectedMachineIds.has(machine.id) ? 'checked' : '';
 
                 listEl.innerHTML += `
-                    <div onclick="openMachineDetail(${machine.id})" class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center shadow hover:border-sky-500 transition cursor-pointer">
-                        <div>
-                            <h3 class="font-bold text-sky-400">${displayName}</h3>
-                            <p class="text-xs text-slate-400">Konum: ${displayLoc} | ${subInfo}</p>
+                    <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex items-center justify-between shadow">
+                        <div class="flex items-center gap-3 flex-1 cursor-pointer" onclick="openMachineDetail(${machine.id})">
+                            <div>
+                                <h3 class="font-bold text-sky-400 text-sm">${displayName}</h3>
+                                <p class="text-xs text-slate-400">Konum: ${displayLoc} | ${subInfo}</p>
+                            </div>
                         </div>
-                        <span class="bg-slate-700 text-xs px-2.5 py-1 rounded-full text-slate-300">Seç →</span>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" data-id="${machine.id}" ${isChecked} onchange="toggleMachineSelection(${machine.id}, this)" class="w-5 h-5 accent-sky-600 rounded cursor-pointer">
+                            <button onclick="openMachineDetail(${machine.id})" class="bg-slate-700 hover:bg-slate-600 text-xs px-2.5 py-1.5 rounded-lg text-slate-300">Seç →</button>
+                        </div>
                     </div>
                 `;
             });
+        }
+
+        function toggleMachineSelection(machineId, checkbox) {
+            if (checkbox.checked) {
+                selectedMachineIds.add(machineId);
+            } else {
+                selectedMachineIds.delete(machineId);
+            }
+
+            const bar = document.getElementById('bulk-action-bar');
+            const countText = document.getElementById('selected-count');
+            
+            if (selectedMachineIds.size > 0) {
+                bar.classList.remove('hidden');
+                countText.innerText = `${selectedMachineIds.size} makine seçildi`;
+            } else {
+                bar.classList.add('hidden');
+            }
+        }
+
+        function openBulkModal() {
+            if (selectedMachineIds.size === 0) {
+                alert('Lütfen en az bir makine seçin!');
+                return;
+            }
+            document.getElementById('bulk-modal-info').innerText = `${selectedMachineIds.size} adet makineye ortak kayıt eklenecek.`;
+            document.getElementById('bulk-modal').classList.remove('hidden');
+        }
+
+        function closeBulkModal() {
+            document.getElementById('bulk-modal').classList.add('hidden');
+        }
+
+        async function submitBulkRecords() {
+            const type = document.getElementById('bulk-rec-type').value;
+            const desc = document.getElementById('bulk-rec-desc').value.trim();
+            const parts = document.getElementById('bulk-rec-parts').value.trim();
+
+            if (!desc) {
+                alert('Lütfen bir açıklama girin!');
+                return;
+            }
+
+            const todayStr = new Date().toISOString().split('T')[0];
+            let successCount = 0;
+
+            for (let mId of selectedMachineIds) {
+                let machine = allMachinesCache.find(m => m.id === mId);
+                if (!machine) continue;
+
+                let mCode = getMachineGeneratedName(machine, allMachinesCache);
+                const fullDesc = `[IPL6-${mCode}] ${desc}`;
+                const fullParts = parts ? `IPL6-${mCode} | ${parts}` : '-';
+
+                const { error } = await supabaseClient.from('maintenance_records').insert([{
+                    machine_id: machine.id > 9000 ? null : machine.id,
+                    record_type: type,
+                    description: fullDesc,
+                    parts_replaced: fullParts,
+                    technician: currentUser.name,
+                    record_date: todayStr
+                }]);
+
+                if (!error) successCount++;
+            }
+
+            alert(`${successCount} makineye kayıt başarıyla eklendi!`);
+            closeBulkModal();
+            document.getElementById('bulk-rec-desc').value = '';
+            document.getElementById('bulk-rec-parts').value = '';
+            selectedMachineIds.clear();
+            document.getElementById('bulk-action-bar').classList.add('hidden');
+            loadMachines();
         }
 
         function filterMachineList() {
@@ -658,7 +790,6 @@
             });
         }
 
-        // 🗑️ Kayıt Silme Fonksiyonu (Yalnızca mbendes yetkisiyle)
         async function deleteRecord(recordId) {
             if (!currentUser || currentUser.username !== 'mbendes') {
                 alert("Bu işlem için yetkiniz yok!");
@@ -799,7 +930,6 @@
             loadRecordsForMachine();
         }
 
-        // 🧹 Manuel Önbellek ve Service Worker Sıfırlama Butonu Fonksiyonu
         async function hardResetApp() {
             if (confirm("Önbellek temizlenecek ve en güncel sürüm yüklenecek. Emin misiniz?")) {
                 if ('serviceWorker' in navigator) {
@@ -820,7 +950,6 @@
             }
         }
 
-        // Otomatik önbellek denetimi
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(registrations => {
                 for(let registration of registrations) {
