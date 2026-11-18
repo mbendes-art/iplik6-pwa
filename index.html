@@ -120,7 +120,7 @@
         const USERS = [
             { username: "mbendes", name: "M. Mendes (Yönetici)", role: "ALL_FACTORY" },
             { username: "cetinkaya", name: "Çetinkaya (Yönetici)", role: "ALL_FACTORY" },
-            { username: "m_altuntas", name: "Mustafa Altuntaş", role: "ALL_FACTORY" },
+            { username: "m_altuntas", name: "Mustafa Altuntaş", role: "KLIMA" },
             { username: "r_sahin", name: "R. Şahin", role: "ALL_FACTORY" },
             { username: "n_erturk", name: "N. Ertürk", role: "ALL_FACTORY" },
             { username: "g_albayrak", name: "G. Albayrak", role: "ALL_FACTORY" },
@@ -243,7 +243,7 @@
                     <button onclick="setCategoryFilter('Ring/Bobin', 'machine_ringbobin')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center">Ring/Bobin</button>
                     <button onclick="setCategoryFilter('Paketleme', 'machines')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">Paketleme</button>
                 `;
-            } else if (currentUser.username === 'm_altuntas') {
+            } else if (currentUser.role === 'KLIMA') {
                 activeTableName = "klima_kompresor_grup";
                 currentCategoryFilter = "Klima/Kompresör";
                 pillsEl.innerHTML = `
@@ -265,6 +265,7 @@
         async function setCategoryFilter(cat, tableName) {
             if (currentUser && currentUser.role === 'RING_BOBIN' && tableName !== 'machine_ringbobin' && tableName !== 'machines' && tableName !== 'tum_arizalar') return;
             if (currentUser && currentUser.role === 'IHZARAT' && tableName !== 'machine_ihzarat' && tableName !== 'tum_arizalar') return;
+            if (currentUser && currentUser.role === 'KLIMA' && tableName !== 'klima_kompresor_grup' && tableName !== 'tum_arizalar') return;
 
             currentCategoryFilter = cat;
             activeTableName = tableName;
@@ -294,6 +295,8 @@
                 activeTableName = 'machine_ringbobin';
             } else if (currentUser && currentUser.role === 'IHZARAT' && activeTableName !== 'tum_arizalar') {
                 activeTableName = 'machine_ihzarat';
+            } else if (currentUser && currentUser.role === 'KLIMA' && activeTableName !== 'tum_arizalar') {
+                activeTableName = 'klima_kompresor_grup';
             }
 
             if (activeTableName === 'tum_arizalar') {
@@ -308,15 +311,38 @@
                     return;
                 }
 
+                let records = data || [];
+
+                // Bölüm sızıntılarını kesin olarak engellemek için etiket kontrolü (Örn: [IPL6-KLM-...])
+                if (currentUser && currentUser.role === 'IHZARAT') {
+                    records = records.filter(rec => {
+                        const d = normalize(rec.description || '');
+                        return d.includes('tarak') || d.includes('harman') || d.includes('unistore') || d.includes('kondenser') || d.includes('vsi') || d.includes('telef') || d.includes('omegallap') || d.includes('unimix');
+                    });
+                } else if (currentUser && currentUser.role === 'RING_BOBIN') {
+                    records = records.filter(rec => {
+                        const d = normalize(rec.description || '');
+                        // İçinde ring veya bobin kelimesi geçecek ama başında kesinlikle "klm" veya "klima" olmayacak
+                        const hasRingOrBobin = d.includes('ring') || d.includes('bobin');
+                        const isKlima = d.includes('klm') || d.includes('klima');
+                        return hasRingOrBobin && !isKlima;
+                    });
+                } else if (currentUser && currentUser.role === 'KLIMA') {
+                    records = records.filter(rec => {
+                        const d = normalize(rec.description || '');
+                        return d.includes('kompresor') || d.includes('kurutucu') || d.includes('klima') || d.includes('klm') || d.includes('pnm');
+                    });
+                }
+
                 listEl.innerHTML = '';
-                if (!data || data.length === 0) {
+                if (records.length === 0) {
                     listEl.innerHTML = '<p class="text-center text-slate-500 py-4">Kayıtlı arıza bulunamadı.</p>';
                     return;
                 }
 
                 const isMbendes = currentUser && currentUser.username === 'mbendes';
 
-                data.forEach(rec => {
+                records.forEach(rec => {
                     const deleteBtnHtml = isMbendes 
                         ? `<button onclick="deleteRecord(${rec.id})" class="text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-0.5 rounded text-xs transition">Sil</button>` 
                         : '';
@@ -564,12 +590,11 @@
             document.getElementById('dashboard-section').classList.remove('hidden');
         }
 
-        // KESİN VE TAM NUMARA EŞLEŞTİRMELİ GEÇMİŞ KAYIT ÇEKME FONKSİYONU
         async function loadRecordsForMachine() {
             const recListEl = document.getElementById('records-list');
             recListEl.innerHTML = '<p class="text-center text-slate-400 py-4">Kayıtlar yükleniyor...</p>';
 
-            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); // Örn: RING-1, BOBİN-18, TARAK-A1 vb.
+            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); 
 
             const { data, error } = await supabaseClient
                 .from('maintenance_records')
@@ -586,20 +611,16 @@
             
             let filteredRecords = (data || []).filter(rec => {
                 const descNorm = normalize(rec.description || '');
-                let cleanTarget = normalize(mCode).replace(/[-\s]/g, ''); // örn: ring1
-
-                // Açıklama içinde köşeli parantez veya etiket metnini bulup kelime/sayı bazlı tam eşleşme arıyoruz
-                // Örneğin [IPL6-RING-1] veya [RING-1] metnini yakalayacağız ama RING-19 veya RING-11'i esgeçeceğiz.
-                
-                // Etiket formatlarını doğrudan regex veya tam kelime sınırlarıyla arayalım:
                 const matchTag = descNorm.match(/\[(.*?)\]/);
                 if (matchTag) {
-                    let tagContent = normalize(matchTag[1]).replace(/[-\s]/g, ''); // ipl6ring1 veya ring1
-                    return tagContent === cleanTarget || tagContent === normalize("ipl6" + mCode).replace(/[-\s]/g, '');
+                    let tagContent = normalize(matchTag[1]).replace(/[-\s]/g, '');
+                    let target1 = normalize(mCode).replace(/[-\s]/g, '');
+                    let target2 = normalize("ipl6" + mCode).replace(/[-\s]/g, '');
+
+                    return tagContent === target1 || tagContent === target2;
                 }
 
-                // Eğer köşeli parantez yoksa düz metin içinde tam sınır eşleşmesi kontrol et
-                return descNorm.includes(normalize(mCode));
+                return false;
             });
 
             if(filteredRecords.length === 0) {
