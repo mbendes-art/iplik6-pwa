@@ -1,8 +1,8 @@
 {
   "name": "İplik 6 Bakım Takip",
   "short_name": "İplik6 Bakım",
-  "start_url": "./index.html",
-  "scope": "./",
+  "start_url": "/iplik6-pwa/index.html",
+  "scope": "/iplik6-pwa/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0ea5e9",
