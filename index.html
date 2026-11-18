@@ -400,30 +400,6 @@
         }
 
         function sortMachinesCustom(a, b) {
-            const codeA = normalize(a.code || a.name || '');
-            const codeB = normalize(b.code || b.name || '');
-
-            const isRingA = codeA.includes('ring');
-            const isRingB = codeB.includes('ring');
-            const isBobinA = codeA.includes('bobin');
-            const isBobinB = codeB.includes('bobin');
-
-            if (isRingA && isRingB) {
-                const numA = parseInt(codeA.replace(/[^0-9]/g, '')) || 0;
-                const numB = parseInt(codeB.replace(/[^0-9]/g, '')) || 0;
-                return numA - numB;
-            }
-            if (isRingA) return -1;
-            if (isRingB) return 1;
-
-            if (isBobinA && isBobinB) {
-                const numA = parseInt(codeA.replace(/[^0-9]/g, '')) || 0;
-                const numB = parseInt(codeB.replace(/[^0-9]/g, '')) || 0;
-                return numA - numB;
-            }
-            if (isBobinA) return -1;
-            if (isBobinB) return 1;
-
             return a.id - b.id;
         }
 
@@ -459,17 +435,15 @@
                 let displayBrand = machine._brand || machine.brand || 'Rieter';
 
                 if (activeTableName === 'machine_ringbobin' && currentCategoryFilter !== 'Paketleme') {
-                    if (index >= 20) {
-                        let bobinIdx = (index - 20) + 1;
+                    if (machine.id <= 20) {
+                        displayName = `Ring-${machine.id}`;
+                        displayBrand = 'RIETER';
+                    } else {
+                        let bobinIdx = machine.id - 20;
                         displayName = `Bobin-${bobinIdx}`;
                         displayBrand = 'MURATEC';
-                    } else {
-                        let ringIdx = index + 1;
-                        if (ringIdx > 20) ringIdx = 20;
-                        displayName = `Ring-${ringIdx}`;
-                        displayBrand = 'RIETER';
                     }
-                    displayCode = machine.serial_no ? `Seri No: ${machine.serial_no}` : '';
+                    displayCode = machine.machine_no ? `Makine No: ${machine.machine_no}` : (machine.serial_no ? `Seri No: ${machine.serial_no}` : '');
                 } else if (machine._sourceTable === 'machine_compressors' || machine._sourceTable === 'machine_dryers') {
                     let rawName = machine.machine_name || machine.name || machine.code || '';
                     let normName = normalize(rawName);
@@ -526,17 +500,11 @@
         }
 
         function getMachineGeneratedName(machine, allList) {
-            let sortedList = [...allList];
             if (activeTableName === 'machine_ringbobin' && currentCategoryFilter !== 'Paketleme') {
-                sortedList.sort(sortMachinesCustom);
-                let sortedIndex = sortedList.indexOf(machine);
-                if (sortedIndex >= 20) {
-                    let bIdx = (sortedIndex - 20) + 1;
-                    return `Bobin-${bIdx}`;
+                if (machine.id <= 20) {
+                    return `Ring-${machine.id}`;
                 } else {
-                    let rIdx = sortedIndex + 1;
-                    if (rIdx > 20) rIdx = 20;
-                    return `Ring-${rIdx}`;
+                    return `Bobin-${machine.id - 20}`;
                 }
             } else if (machine._sourceTable === 'machine_compressors' || machine._sourceTable === 'machine_dryers') {
                 let comps = allList.filter(m => m._sourceTable === 'machine_compressors');
@@ -592,6 +560,7 @@
             document.getElementById('dashboard-section').classList.remove('hidden');
         }
 
+        // KESİN İZOLASYONLU GEÇMİŞ KAYITLARI ÇEKME FONKSİYONU (Yalnızca ID eşleşmesi baz alınır)
         async function loadRecordsForMachine() {
             const recListEl = document.getElementById('records-list');
             recListEl.innerHTML = '<p class="text-center text-slate-400 py-4">Kayıtlar yükleniyor...</p>';
@@ -599,17 +568,16 @@
             const mId = selectedMachine.id;
             let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache);
 
-            // KESİN ÇÖZÜM: Hem gerçek machine_id eşleşmesini hem de açıklama içindeki [Makine Adı] etiketini birlikte sorgulayarak tam izolasyon sağlıyoruz
+            // Supabase'den sadece ve sadece bu makinenin ID'sine ait kayıtları çekiyoruz
             let query = supabaseClient.from('maintenance_records').select('*');
             
             if (mId > 9000) {
                 query = query.ilike('description', `%[${mCode}]%`);
             } else {
-                // Hem machine_id ile hem de ilike ile tam eşleşenleri veya machine_id'si doğrudan uyanları getir
-                query = query.or(`machine_id.eq.${mId},description.ilike.%[${mCode}]%`);
+                query = query.eq('machine_id', mId);
             }
 
-            const { data, error } = await query.order('record_date', { ascending: false }).limit(200);
+            const { data, error } = await query.order('record_date', { ascending: false }).limit(100);
 
             if(error) {
                 recListEl.innerHTML = '<p class="text-red-400 text-center">Kayıtlar yüklenirken hata oluştu.</p>';
@@ -617,11 +585,22 @@
             }
 
             recListEl.innerHTML = '';
-            // Ekstra güvenlik filtresi: Sadece gerçekten o makinenin etiketini taşıyan veya ID'si uyan kayıtları süz
+            
+            // Ekstra Sıkı Süzgeç: machine_id kesinlikle eşleşmeyen veya başka makine etiketi içerenleri tamamen eliyoruz
             let filteredRecords = (data || []).filter(rec => {
-                const desc = normalize(rec.description || '');
-                const targetTag = normalize(`[${mCode}]`);
-                return rec.machine_id === mId || desc.includes(targetTag);
+                if (mId > 9000) {
+                    const desc = normalize(rec.description || '');
+                    return desc.includes(normalize(`[${mCode}]`));
+                } else {
+                    // ID eşleşmesi zorunludur ve başka makine etiketi sızmışsa engellenir
+                    if (rec.machine_id !== mId) return false;
+                    const desc = normalize(rec.description || '');
+                    // Eğer kayıtta başka bir makinenin etiketi (örn [IPL6-UNIMIX-A] veya [Ring-1] vb) geçiyorsa ve bu bizim mCode'umuz değilse sızmayı önle
+                    if (desc.includes('[') && desc.includes(']')) {
+                        return desc.includes(normalize(`[${mCode}]`));
+                    }
+                    return true;
+                }
             });
 
             if(filteredRecords.length === 0) {
@@ -697,11 +676,8 @@
         function getMachineGeneratedNameForSearch(machine, allList) {
             let code = normalize(machine.code || machine.name || '');
             if (code.includes('ring') || code.includes('bobin') || activeTableName === 'machine_ringbobin') {
-                let rbList = allList.filter(m => m._sourceTable === 'machine_ringbobin');
-                rbList.sort(sortMachinesCustom);
-                let idx = rbList.indexOf(machine);
-                if (idx >= 20) return `Bobin-${(idx - 20) + 1}`;
-                if (idx >= 0) return `Ring-${idx + 1}`;
+                if (machine.id <= 20) return `Ring-${machine.id}`;
+                return `Bobin-${machine.id - 20}`;
             }
             if (machine._sourceTable === 'machine_ihzarat' || normalize(machine.machine_name || '').includes('harman')) {
                 let rName = machine.machine_name || machine.name || '';
