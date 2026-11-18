@@ -50,7 +50,7 @@
             </div>
             
             <!-- Arama Kutusu -->
-            <input type="text" id="search-input" oninput="filterMachineList()" placeholder="Makine ara (örn: bobin, ring)..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
+            <input type="text" id="search-input" oninput="filterMachineList()" placeholder="Makine ara (örn: tarak, bobin, ring)..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
 
             <!-- Hızlı Kategori Filtre Butonları -->
             <div id="category-pills" class="grid grid-cols-2 gap-2 text-xs">
@@ -162,7 +162,7 @@
             if(!rawVal) return;
 
             const normVal = normalize(rawVal);
-            const filteredUsers = USERS.filter(u => u.username !== 'mbendes' && normalize(u.username).includes(normVal));
+            const filteredUsers = USERS.filter(u => normalize(u.username).includes(normVal));
 
             filteredUsers.forEach(u => {
                 const opt = document.createElement('option');
@@ -314,14 +314,23 @@
                     return;
                 }
 
+                const isMbendes = currentUser && currentUser.username === 'mbendes';
+
                 data.forEach(rec => {
+                    const deleteBtnHtml = isMbendes 
+                        ? `<button onclick="deleteRecord(${rec.id})" class="text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-0.5 rounded text-xs transition">Sil</button>` 
+                        : '';
+
                     listEl.innerHTML += `
-                        <div onclick="openMachineFromRecord('${escapeHtml(rec.description)}')" class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-1 shadow hover:border-sky-500 transition cursor-pointer">
+                        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-1 shadow relative">
                             <div class="flex justify-between items-center text-xs">
                                 <span class="text-amber-400 font-semibold">${rec.record_type || 'Arıza/Bakım'}</span>
-                                <span class="text-slate-400">${rec.record_date || ''}</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-slate-400">${rec.record_date || ''}</span>
+                                    ${deleteBtnHtml}
+                                </div>
                             </div>
-                            <p class="text-sm text-slate-200 mt-1">${rec.description}</p>
+                            <p class="text-sm text-slate-200 mt-1 cursor-pointer" onclick="openMachineFromRecord('${escapeHtml(rec.description)}')">${rec.description}</p>
                             <p class="text-xs text-slate-400 border-t border-slate-700/50 pt-1 mt-1">Parça: ${rec.parts_replaced || '-'} | Teknisyen: ${rec.technician || '-'}</p>
                         </div>
                     `;
@@ -499,7 +508,7 @@
         function getMachineGeneratedName(machine, allList) {
             if (activeTableName === 'machine_ringbobin' && currentCategoryFilter !== 'Paketleme') {
                 let nameVal = (machine.machine_name || '').trim();
-                if (nameVal) return nameVal; // Supabase'de ne yazıyorsa aynen al (örn: BOBİN-18)
+                if (nameVal) return nameVal;
                 return machine.id <= 20 ? `RING-${machine.id}` : `BOBİN-${machine.id - 20}`;
             } else if (machine._sourceTable === 'machine_compressors' || machine._sourceTable === 'machine_dryers') {
                 let comps = allList.filter(m => m._sourceTable === 'machine_compressors');
@@ -523,8 +532,8 @@
                     return rawName;
                 }
             } else if (activeTableName === 'machine_ihzarat') {
-                const rawName = machine.machine_name || machine.name || '';
-                const rawNo = machine.operation_no || machine.machine_no || machine.code || '';
+                let rawName = machine.machine_name || machine.name || '';
+                let rawNo = machine.operation_no || machine.machine_no || machine.code || '';
                 if (normalize(rawName).includes('harman')) {
                     return `HARMAN-${rawNo}`.toUpperCase();
                 }
@@ -555,14 +564,12 @@
             document.getElementById('dashboard-section').classList.remove('hidden');
         }
 
-        // TAM KAPSAMLI VE %100 TOLERANSLI GEÇMİŞ KAYITLARI ÇEKME FONKSİYONU
+        // KESİN VE TAM NUMARA EŞLEŞTİRMELİ GEÇMİŞ KAYIT ÇEKME FONKSİYONU
         async function loadRecordsForMachine() {
             const recListEl = document.getElementById('records-list');
             recListEl.innerHTML = '<p class="text-center text-slate-400 py-4">Kayıtlar yükleniyor...</p>';
 
-            const mId = selectedMachine.id;
-            const machineNum = mId <= 20 ? mId : mId - 20;
-            const isRing = mId <= 20;
+            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); // Örn: RING-1, BOBİN-18, TARAK-A1 vb.
 
             const { data, error } = await supabaseClient
                 .from('maintenance_records')
@@ -577,27 +584,22 @@
 
             recListEl.innerHTML = '';
             
-            // [IPL6-BOBİN-18], [IPL6-BOBIN-18], [BOBİN-18], [BOBIN-18] gibi tüm varyasyonları normalize ederek yakalar
             let filteredRecords = (data || []).filter(rec => {
                 const descNorm = normalize(rec.description || '');
+                let cleanTarget = normalize(mCode).replace(/[-\s]/g, ''); // örn: ring1
+
+                // Açıklama içinde köşeli parantez veya etiket metnini bulup kelime/sayı bazlı tam eşleşme arıyoruz
+                // Örneğin [IPL6-RING-1] veya [RING-1] metnini yakalayacağız ama RING-19 veya RING-11'i esgeçeceğiz.
                 
-                if (isRing) {
-                    return descNorm.includes('ring') && (
-                        descNorm.includes(`ring-${machineNum}`) || 
-                        descNorm.includes(`ring${machineNum}`) || 
-                        descNorm.includes(`-${machineNum}]`) || 
-                        descNorm.includes(` ${machineNum} `)
-                    );
-                } else {
-                    return (descNorm.includes('bobin') || descNorm.includes('bobın')) && (
-                        descNorm.includes(`bobin-${machineNum}`) || 
-                        descNorm.includes(`bobın-${machineNum}`) || 
-                        descNorm.includes(`bobin${machineNum}`) || 
-                        descNorm.includes(`bobın${machineNum}`) || 
-                        descNorm.includes(`-${machineNum}]`) || 
-                        descNorm.includes(` ${machineNum} `)
-                    );
+                // Etiket formatlarını doğrudan regex veya tam kelime sınırlarıyla arayalım:
+                const matchTag = descNorm.match(/\[(.*?)\]/);
+                if (matchTag) {
+                    let tagContent = normalize(matchTag[1]).replace(/[-\s]/g, ''); // ipl6ring1 veya ring1
+                    return tagContent === cleanTarget || tagContent === normalize("ipl6" + mCode).replace(/[-\s]/g, '');
                 }
+
+                // Eğer köşeli parantez yoksa düz metin içinde tam sınır eşleşmesi kontrol et
+                return descNorm.includes(normalize(mCode));
             });
 
             if(filteredRecords.length === 0) {
@@ -605,18 +607,56 @@
                 return;
             }
 
+            const isMbendes = currentUser && currentUser.username === 'mbendes';
+
             filteredRecords.forEach(rec => {
+                const deleteBtnHtml = isMbendes 
+                    ? `<button onclick="deleteRecord(${rec.id})" class="text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-0.5 rounded text-xs transition">Sil</button>` 
+                    : '';
+
                 recListEl.innerHTML += `
-                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-1 shadow">
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-1 shadow relative">
                         <div class="flex justify-between items-center text-xs">
                             <span class="text-sky-400 font-semibold">${rec.record_type || 'Bakım'}</span>
-                            <span class="text-slate-400">${rec.record_date || ''}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-slate-400">${rec.record_date || ''}</span>
+                                ${deleteBtnHtml}
+                            </div>
                         </div>
                         <p class="text-sm text-slate-200 mt-1">${rec.description}</p>
                         <p class="text-xs text-slate-400 border-t border-slate-700/50 pt-1 mt-1">Parça: ${rec.parts_replaced || '-'} | Teknisyen: ${rec.technician || '-'}</p>
                     </div>
                 `;
             });
+        }
+
+        // 🗑️ Kayıt Silme Fonksiyonu (Yalnızca mbendes yetkisiyle)
+        async function deleteRecord(recordId) {
+            if (!currentUser || currentUser.username !== 'mbendes') {
+                alert("Bu işlem için yetkiniz yok!");
+                return;
+            }
+
+            if (confirm("Bu kayıt kalıcı olarak silinecek. Emin misiniz?")) {
+                const { error } = await supabaseClient
+                    .from('maintenance_records')
+                    .delete()
+                    .eq('id', recordId);
+
+                if (error) {
+                    alert("Kayıt silinirken bir hata oluştu!");
+                    console.error(error);
+                    return;
+                }
+
+                alert("Kayıt başarıyla silindi.");
+                
+                if (activeTableName === 'tum_arizalar') {
+                    loadMachines();
+                } else {
+                    loadRecordsForMachine();
+                }
+            }
         }
 
         function escapeHtml(text) {
@@ -681,7 +721,7 @@
                 let rName = machine.machine_name || machine.name || '';
                 let rNo = machine.operation_no || machine.machine_no || machine.code || '';
                 if (normalize(rName).includes('harman')) return `HARMAN-${rNo}`.toUpperCase();
-                return rNo ? `${rName}-${rNo}` : rName;
+                return rNo ? `${rName}-${rNo}` : rNo;
             }
             return machine.code || machine.name || machine.machine_name || '';
         }
@@ -704,7 +744,7 @@
                 return;
             }
 
-            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); // Örn: BOBİN-18
+            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); 
 
             const fullDesc = `[IPL6-${mCode}] ${desc}`;
             const fullParts = parts ? `IPL6-${mCode} | ${parts}` : '-';
