@@ -184,18 +184,23 @@
         let activeTableName = 'machines';
         let selectedMachineIds = new Set();
 
-        // 🛡️ Mobil Geri Tuşu (Sol Ok) Koruması: Sayfadan çıkışı engeller, detaydaysa listeye döndürür
-        history.pushState(null, null, window.location.href);
+        // 🛡️ Gelişmiş Mobil Geri Tuşu (Sol Ok) Kilidi: Oturumu düşürmeden güvenli yönlendirme
+        window.history.pushState({ page: 'main' }, '', '');
         window.addEventListener('popstate', function (event) {
-            history.pushState(null, null, window.location.href);
+            window.history.pushState({ page: 'main' }, '', '');
             if (currentUser) {
                 const detailSec = document.getElementById('detail-section');
-                if (!detailSec.classList.contains('hidden')) {
+                const recordModal = document.getElementById('record-modal');
+                const bulkModal = document.getElementById('bulk-modal');
+
+                if (!recordModal.classList.contains('hidden')) {
+                    closeAddRecordModal();
+                } else if (!bulkModal.classList.contains('hidden')) {
+                    closeBulkModal();
+                } else if (!detailSec.classList.contains('hidden')) {
                     backToDashboard();
-                } else {
-                    // Ana sayfada kazara çıkışı engellemek için onay sorabilir veya sabit tutabiliriz
-                    console.log("Geri tuşu kilitlendi.");
                 }
+                // Ana sayfada ve giriş ekranındayken geri tuşu tamamen bloke edilerek oturumun kapanması engellenir
             }
         });
 
