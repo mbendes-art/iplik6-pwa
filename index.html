@@ -184,10 +184,9 @@
         let activeTableName = 'machines';
         let selectedMachineIds = new Set();
 
-        // 🛡️ Geri Tuşu Yönetimi: Modal açıksa kapatır, detay sayfasındaysa listeye döner. Ana sayfada serbesttir.
+        // 🛡️ Akıllı Geri Tuşu Yönetimi: Ana sayfada serbest, detay ve modallarda güvenli dönüş
         window.history.pushState({ page: 'main' }, '', '');
         window.addEventListener('popstate', function (event) {
-            window.history.pushState({ page: 'main' }, '', '');
             if (currentUser) {
                 const detailSec = document.getElementById('detail-section');
                 const recordModal = document.getElementById('record-modal');
@@ -195,12 +194,16 @@
 
                 if (!recordModal.classList.contains('hidden')) {
                     closeAddRecordModal();
+                    window.history.pushState({ page: 'main' }, '', '');
                 } else if (!bulkModal.classList.contains('hidden')) {
                     closeBulkModal();
+                    window.history.pushState({ page: 'main' }, '', '');
                 } else if (!detailSec.classList.contains('hidden')) {
                     backToDashboard();
+                    window.history.pushState({ page: 'main' }, '', '');
+                } else {
+                    // Ana sayfadayken geri tuşuna basıldığında tarayıcının varsayılan çıkışına izin verilir veya kullanıcı Çıkış butonunu kullanır
                 }
-                // Ana sayfada sol ok normal işlevini yapar, çıkış için sadece Çıkış butonu kullanılır
             }
         });
 
@@ -717,6 +720,8 @@
             selectedMachine = allMachinesCache.find(m => m.id === machineId);
             if(!selectedMachine) return;
 
+            window.history.pushState({ page: 'detail' }, '', '');
+
             document.getElementById('dashboard-section').classList.add('hidden');
             document.getElementById('detail-section').classList.remove('hidden');
 
@@ -891,11 +896,68 @@
         }
 
         openAddRecordModal = function() {
+            window.history.pushState({ page: 'modal' }, '', '');
             document.getElementById('record-modal').classList.remove('hidden');
         }
 
         function closeAddRecordModal() {
             document.getElementById('record-modal').classList.add('hidden');
+        }
+
+        function openBulkModal() {
+            if (selectedMachineIds.size === 0) {
+                alert('Lütfen en az bir makine seçin!');
+                return;
+            }
+            window.history.pushState({ page: 'modal' }, '', '');
+            document.getElementById('bulk-modal-info').innerText = `${selectedMachineIds.size} adet makineye ortak kayıt eklenecek.`;
+            document.getElementById('bulk-modal').classList.remove('hidden');
+        }
+
+        function closeBulkModal() {
+            document.getElementById('bulk-modal').classList.add('hidden');
+        }
+
+        async function submitBulkRecords() {
+            const type = document.getElementById('bulk-rec-type').value;
+            const desc = document.getElementById('bulk-rec-desc').value.trim();
+            const parts = document.getElementById('bulk-rec-parts').value.trim();
+
+            if (!desc) {
+                alert('Lütfen bir açıklama girin!');
+                return;
+            }
+
+            const todayStr = new Date().toISOString().split('T')[0];
+            let successCount = 0;
+
+            for (let mId of selectedMachineIds) {
+                let machine = allMachinesCache.find(m => m.id === mId);
+                if (!machine) continue;
+
+                let mCode = getMachineGeneratedName(machine, allMachinesCache);
+                const fullDesc = `[IPL6-${mCode}] ${desc}`;
+                const fullParts = parts ? `IPL6-${mCode} | ${parts}` : '-';
+
+                const { error } = await supabaseClient.from('maintenance_records').insert([{
+                    machine_id: machine.id > 9000 ? null : machine.id,
+                    record_type: type,
+                    description: fullDesc,
+                    parts_replaced: fullParts,
+                    technician: currentUser.name,
+                    record_date: todayStr
+                }]);
+
+                if (!error) successCount++;
+            }
+
+            alert(`${successCount} makineye kayıt başarıyla eklendi!`);
+            closeBulkModal();
+            document.getElementById('bulk-rec-desc').value = '';
+            document.getElementById('bulk-rec-parts').value = '';
+            selectedMachineIds.clear();
+            document.getElementById('bulk-action-bar').classList.add('hidden');
+            loadMachines();
         }
 
         async function submitNewRecord() {
