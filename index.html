@@ -184,7 +184,7 @@
         let activeTableName = 'machines';
         let selectedMachineIds = new Set();
 
-        // 🛡️ KESİN GEÇMİŞ KİLİDİ
+        // 🛡️ KESİN GEÇMİŞ KİLİDİ VE OTORİTE KONTROLÜ
         history.replaceState({ page: 'app' }, document.title, window.location.href);
         window.addEventListener('popstate', function (event) {
             history.pushState({ page: 'app' }, document.title, window.location.href);
@@ -199,6 +199,26 @@
                     closeBulkModal();
                 } else if (!detailSec.classList.contains('hidden')) {
                     backToDashboard();
+                }
+            }
+        });
+
+        // Sayfa açıldığında hafızada kayıtlı oturum var mı kontrol et
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedUserJson = localStorage.getItem('iplik6_current_user');
+            if (savedUserJson) {
+                try {
+                    currentUser = JSON.parse(savedUserJson);
+                    document.getElementById('user-info').innerText = currentUser.name;
+                    document.getElementById('role-badge').innerText = `Rol: ${currentUser.role}`;
+                    document.getElementById('login-section').classList.add('hidden');
+                    document.getElementById('dashboard-section').classList.remove('hidden');
+                    document.getElementById('logout-btn').classList.remove('hidden');
+
+                    setupCategoryPills();
+                    loadMachines();
+                } catch(e) {
+                    localStorage.removeItem('iplik6_current_user');
                 }
             }
         });
@@ -248,6 +268,7 @@
             }
 
             currentUser = foundUser;
+            localStorage.setItem('iplik6_current_user', JSON.stringify(currentUser));
             
             try {
                 await supabaseClient.from('login_logs').insert([{ 
@@ -274,6 +295,7 @@
                 currentCategoryFilter = 'ALL';
                 activeTableName = 'machines';
                 selectedMachineIds.clear();
+                localStorage.removeItem('iplik6_current_user');
                 
                 document.getElementById('username-input').value = '';
                 document.getElementById('user-suggestions').innerHTML = '';
@@ -958,7 +980,7 @@
             const parts = document.getElementById('rec-parts').value.trim();
             
             if(!desc) {
-                alert('Lütfen bir açıklama girinนิ!');
+                alert('Lütfen bir açıklama girin!');
                 return;
             }
 
@@ -969,7 +991,7 @@
             const todayStr = new Date().toISOString().split('T')[0];
 
             const { error } = await supabaseClient.from('maintenance_records').insert([{
-                machine_id: selectedMachine.id > 9000 ? null : selectedMachine.id,
+                machine_id: machine.id > 9000 ? null : machine.id,
                 record_type: type,
                 description: fullDesc,
                 parts_replaced: fullParts,
