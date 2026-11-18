@@ -26,7 +26,9 @@
             <p id="role-badge" class="text-xs text-slate-400">Rol: -</p>
         </div>
         <div class="flex items-center gap-2">
-            <button onclick="hardResetApp()" class="bg-amber-600/20 text-amber-400 border border-amber-500/30 text-xs px-2.5 py-1 rounded font-medium">🧹 Önbelleği Temizle</button>
+            <!-- Mbendes'e Özel Log Görüntüleme Butonu -->
+            <button id="view-logs-btn" onclick="openLogsModal()" class="hidden bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 text-xs px-2.5 py-1 rounded font-medium">📋 Giriş Logları</button>
+            <button onclick="hardResetApp()" class="bg-amber-600/20 text-amber-400 border border-amber-500/30 text-xs px-2.5 py-1 rounded font-medium">🧹 Önbellek</button>
             <span id="user-info" class="text-xs text-slate-300">Giriş Yapılmadı</span>
             <button id="logout-btn" onclick="handleLogout()" class="hidden bg-red-600/20 text-red-400 border border-red-500/30 text-xs px-2 py-1 rounded">Çıkış</button>
         </div>
@@ -63,7 +65,7 @@
                 <button onclick="setCategoryFilter('ALL', 'machines')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2">Tümü</button>
             </div>
 
-            <!-- TOPLU İŞLEM KONTROL ÇUBUĞU (ANA SAYFADA GÖRÜNÜR) -->
+            <!-- TOPLU İŞLEM KONTROL ÇUBUĞU -->
             <div id="bulk-action-bar" class="hidden bg-sky-900/40 border border-sky-500/40 p-3 rounded-xl flex justify-between items-center shadow-lg">
                 <span id="selected-count" class="text-xs text-sky-300 font-medium">0 makine seçildi</span>
                 <button onclick="openBulkModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-2 rounded-lg font-semibold transition shadow">⚡ Toplu Kayıt Ekle</button>
@@ -76,7 +78,6 @@
 
         <!-- Machine Detail & Records Section -->
         <div id="detail-section" class="hidden space-y-4">
-            <!-- LİSTEYE DÖN BUTONU -->
             <button onclick="backToDashboard()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition transform active:scale-95 text-base border border-sky-400">
                 <span>⬅</span> <span>MAKİNE LİSTESİNE DÖN</span>
             </button>
@@ -98,6 +99,20 @@
         </div>
 
     </main>
+
+    <!-- Giriş Logları Modal (Sadece Mbendes'e Özel) -->
+    <div id="logs-modal" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl space-y-4 shadow-2xl max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+                <h3 class="text-lg font-bold text-indigo-400">📋 Sistem Giriş Raporu</h3>
+                <button onclick="closeLogsModal()" class="text-slate-400 hover:text-white text-sm font-bold px-2 py-1 bg-slate-700 rounded">✕</button>
+            </div>
+            <div id="logs-list-container" class="overflow-y-auto space-y-2 flex-1 pr-1">
+                <p class="text-center text-slate-400 py-4">Loglar yükleniyor...</p>
+            </div>
+            <button onclick="closeLogsModal()" class="w-full bg-slate-700 hover:bg-slate-600 py-2.5 rounded-lg text-sm transition font-medium">Kapat</button>
+        </div>
+    </div>
 
     <!-- Kayıt Ekle Modal (Tekil) -->
     <div id="record-modal" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
@@ -224,12 +239,15 @@
                 const detailSec = document.getElementById('detail-section');
                 const recordModal = document.getElementById('record-modal');
                 const editModal = document.getElementById('edit-record-modal');
+                const logsModal = document.getElementById('logs-modal');
                 const bulkModal = document.getElementById('bulk-modal');
 
                 if (!recordModal.classList.contains('hidden')) {
                     closeAddRecordModal();
                 } else if (!editModal.classList.contains('hidden')) {
                     closeEditRecordModal();
+                } else if (!logsModal.classList.contains('hidden')) {
+                    closeLogsModal();
                 } else if (!bulkModal.classList.contains('hidden')) {
                     closeBulkModal();
                 } else if (!detailSec.classList.contains('hidden')) {
@@ -249,6 +267,10 @@
                     document.getElementById('login-section').classList.add('hidden');
                     document.getElementById('dashboard-section').classList.remove('hidden');
                     document.getElementById('logout-btn').classList.remove('hidden');
+
+                    if (currentUser.username === 'mbendes') {
+                        document.getElementById('view-logs-btn').classList.remove('hidden');
+                    }
 
                     setupCategoryPills();
                     loadMachines();
@@ -318,6 +340,12 @@
             document.getElementById('dashboard-section').classList.remove('hidden');
             document.getElementById('logout-btn').classList.remove('hidden');
 
+            if (currentUser.username === 'mbendes') {
+                document.getElementById('view-logs-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('view-logs-btn').classList.add('hidden');
+            }
+
             setupCategoryPills();
             loadMachines();
         }
@@ -338,11 +366,58 @@
                 document.getElementById('dashboard-section').classList.add('hidden');
                 document.getElementById('login-section').classList.remove('hidden');
                 document.getElementById('logout-btn').classList.add('hidden');
+                document.getElementById('view-logs-btn').classList.add('hidden');
                 document.getElementById('user-info').innerText = 'Giriş Yapılmadı';
                 document.getElementById('role-badge').innerText = 'Rol: -';
                 document.getElementById('machine-list').innerHTML = '';
                 document.getElementById('bulk-action-bar').classList.add('hidden');
             }
+        }
+
+        async function openLogsModal() {
+            if (!currentUser || currentUser.username !== 'mbendes') return;
+
+            const container = document.getElementById('logs-list-container');
+            container.innerHTML = '<p class="text-center text-slate-400 py-4">Giriş logları yükleniyor...</p>';
+            document.getElementById('logs-modal').classList.remove('hidden');
+
+            const { data, error } = await supabaseClient
+                .from('login_logs')
+                .select('*')
+                .order('id', { ascending: false })
+                .limit(100);
+
+            if (error) {
+                container.innerHTML = '<p class="text-red-400 text-center">Loglar yüklenirken hata oluştu.</p>';
+                return;
+            }
+
+            let logs = data || [];
+            container.innerHTML = '';
+
+            if (logs.length === 0) {
+                container.innerHTML = '<p class="text-center text-slate-500 py-4">Henüz giriş kaydı bulunmuyor.</p>';
+                return;
+            }
+
+            logs.forEach(log => {
+                let userObj = USERS.find(u => u.username === log.username);
+                let fullName = userObj ? userObj.name : log.username;
+
+                container.innerHTML += `
+                    <div class="bg-slate-900 p-3 rounded-lg border border-slate-700/80 flex justify-between items-center text-xs">
+                        <div>
+                            <span class="font-bold text-sky-400">${fullName}</span>
+                            <span class="text-slate-400 block">Kullanıcı: ${log.username}</span>
+                        </div>
+                        <span class="text-amber-300 font-medium">${log.login_time || ''}</span>
+                    </div>
+                `;
+            });
+        }
+
+        function closeLogsModal() {
+            document.getElementById('logs-modal').classList.add('hidden');
         }
 
         function setupCategoryPills() {
@@ -466,8 +541,8 @@
                 const isMbendes = currentUser && (currentUser.username === 'mbendes' || currentUser.username === 'cetinkaya');
 
                 records.forEach(rec => {
-                    const canEdit = true; // ✍️ HERKES DÜZENLEME YAPABİLİR
-                    const canDelete = isMbendes; // 🛡️ SİLME YETKİSİ KESİNLİKLE SADECE YÖNETİCİDE
+                    const canEdit = true;
+                    const canDelete = isMbendes;
 
                     let actionBtnsHtml = '';
                     if (canEdit || canDelete) {
@@ -845,8 +920,8 @@
             const isMbendes = currentUser && (currentUser.username === 'mbendes' || currentUser.username === 'cetinkaya');
 
             filteredRecords.forEach(rec => {
-                const canEdit = true; // ✍️ HERKES DÜZENLEME YAPABİLİR
-                const canDelete = isMbendes; // 🛡️ SİLME YETKİSİ SADECE YÖNETİCİDE
+                const canEdit = true;
+                const canDelete = isMbendes;
 
                 let actionBtnsHtml = '';
                 if (canEdit || canDelete) {
@@ -929,7 +1004,7 @@
         }
 
         async function deleteRecord(recordId) {
-            const isMbendes = currentUser && (currentUser.username === 'mbendes' || currentUser.username === 'cetinkaya');
+            const isMbendes = currentUser && currentUser.username === 'mbendes';
 
             if (!isMbendes) {
                 alert("Bu kaydı silme yetkiniz yok!");
