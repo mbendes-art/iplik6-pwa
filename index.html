@@ -76,7 +76,7 @@
 
         <!-- Machine Detail & Records Section -->
         <div id="detail-section" class="hidden space-y-4">
-            <!-- ÇOK DAHA BELİRGİN VE BÜYÜK LİSTEYE DÖN BUTONU -->
+            <!-- LİSTEYE DÖN BUTONU -->
             <button onclick="backToDashboard()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition transform active:scale-95 text-base border border-sky-400">
                 <span>⬅</span> <span>MAKİNE LİSTESİNE DÖN</span>
             </button>
@@ -122,6 +122,34 @@
             <div class="flex gap-2 pt-2">
                 <button onclick="closeAddRecordModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2.5 rounded-lg text-sm transition">İptal</button>
                 <button onclick="submitNewRecord()" class="flex-1 bg-sky-600 hover:bg-sky-500 py-2.5 rounded-lg text-sm font-semibold transition">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kayıt Düzenle Modal -->
+    <div id="edit-record-modal" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl space-y-4 shadow-2xl">
+            <h3 class="text-lg font-bold text-amber-400">Kayıt Düzenle</h3>
+            <input type="hidden" id="edit-rec-id">
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Kayıt Türü</label>
+                <select id="edit-rec-type" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white">
+                    <option value="Periyodik Bakım">Periyodik Bakım</option>
+                    <option value="Arıza Bildirimi">Arıza Bildirimi</option>
+                    <option value="Mekanik Müdahale">Mekanik Müdahale</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Açıklama</label>
+                <textarea id="edit-rec-desc" rows="3" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-amber-500"></textarea>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Değişen Parçalar / Not</label>
+                <input type="text" id="edit-rec-parts" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeEditRecordModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2.5 rounded-lg text-sm transition">İptal</button>
+                <button onclick="submitEditRecord()" class="flex-1 bg-amber-600 hover:bg-amber-500 py-2.5 rounded-lg text-sm font-semibold transition">Güncelle</button>
             </div>
         </div>
     </div>
@@ -186,6 +214,7 @@
         let currentCategoryFilter = 'ALL';
         let activeTableName = 'machines';
         let selectedMachineIds = new Set();
+        let currentRecordsCache = [];
 
         // 🛡️ KESİN GEÇMİŞ KİLİDİ
         history.replaceState({ page: 'app' }, document.title, window.location.href);
@@ -194,10 +223,13 @@
             if (currentUser) {
                 const detailSec = document.getElementById('detail-section');
                 const recordModal = document.getElementById('record-modal');
+                const editModal = document.getElementById('edit-record-modal');
                 const bulkModal = document.getElementById('bulk-modal');
 
                 if (!recordModal.classList.contains('hidden')) {
                     closeAddRecordModal();
+                } else if (!editModal.classList.contains('hidden')) {
+                    closeEditRecordModal();
                 } else if (!bulkModal.classList.contains('hidden')) {
                     closeBulkModal();
                 } else if (!detailSec.classList.contains('hidden')) {
@@ -404,6 +436,7 @@
                 }
 
                 let records = data || [];
+                currentRecordsCache = records;
 
                 if (currentUser && currentUser.role === 'IHZARAT') {
                     records = records.filter(rec => {
@@ -430,12 +463,23 @@
                     return;
                 }
 
-                const isMbendes = currentUser && currentUser.username === 'mbendes';
+                const isMbendes = currentUser && (currentUser.username === 'mbendes' || currentUser.username === 'cetinkaya');
 
                 records.forEach(rec => {
-                    const deleteBtnHtml = isMbendes 
-                        ? `<button onclick="deleteRecord(${rec.id})" class="text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-0.5 rounded text-xs transition">Sil</button>` 
-                        : '';
+                    const canEdit = true; // ✍️ HERKES DÜZENLEME YAPABİLİR
+                    const canDelete = isMbendes; // 🛡️ SİLME YETKİSİ KESİNLİKLE SADECE YÖNETİCİDE
+
+                    let actionBtnsHtml = '';
+                    if (canEdit || canDelete) {
+                        actionBtnsHtml += `<div class="flex items-center gap-1.5">`;
+                        if (canEdit) {
+                            actionBtnsHtml += `<button onclick="openEditRecordModal(${rec.id})" class="text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded text-xs transition">Düzenle</button>`;
+                        }
+                        if (canDelete) {
+                            actionBtnsHtml += `<button onclick="deleteRecord(${rec.id})" class="text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-0.5 rounded text-xs transition">Sil</button>`;
+                        }
+                        actionBtnsHtml += `</div>`;
+                    }
 
                     listEl.innerHTML += `
                         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-1 shadow relative">
@@ -443,7 +487,7 @@
                                 <span class="text-amber-400 font-semibold">${rec.record_type || 'Arıza/Bakım'}</span>
                                 <div class="flex items-center gap-2">
                                     <span class="text-slate-400">${rec.record_date || ''}</span>
-                                    ${deleteBtnHtml}
+                                    ${actionBtnsHtml}
                                 </div>
                             </div>
                             <p class="text-sm text-slate-200 mt-1 cursor-pointer" onclick="openMachineFromRecord('${escapeHtml(rec.description)}')">${rec.description}</p>
@@ -775,9 +819,11 @@
                 return;
             }
 
+            let records = data || [];
+            currentRecordsCache = records;
             recListEl.innerHTML = '';
             
-            let filteredRecords = (data || []).filter(rec => {
+            let filteredRecords = records.filter(rec => {
                 const descNorm = normalize(rec.description || '');
                 const matchTag = descNorm.match(/\[(.*?)\]/);
                 if (matchTag) {
@@ -796,12 +842,23 @@
                 return;
             }
 
-            const isMbendes = currentUser && currentUser.username === 'mbendes';
+            const isMbendes = currentUser && (currentUser.username === 'mbendes' || currentUser.username === 'cetinkaya');
 
             filteredRecords.forEach(rec => {
-                const deleteBtnHtml = isMbendes 
-                    ? `<button onclick="deleteRecord(${rec.id})" class="text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-0.5 rounded text-xs transition">Sil</button>` 
-                    : '';
+                const canEdit = true; // ✍️ HERKES DÜZENLEME YAPABİLİR
+                const canDelete = isMbendes; // 🛡️ SİLME YETKİSİ SADECE YÖNETİCİDE
+
+                let actionBtnsHtml = '';
+                if (canEdit || canDelete) {
+                    actionBtnsHtml += `<div class="flex items-center gap-1.5">`;
+                    if (canEdit) {
+                        actionBtnsHtml += `<button onclick="openEditRecordModal(${rec.id})" class="text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded text-xs transition">Düzenle</button>`;
+                    }
+                    if (canDelete) {
+                        actionBtnsHtml += `<button onclick="deleteRecord(${rec.id})" class="text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-0.5 rounded text-xs transition">Sil</button>`;
+                    }
+                    actionBtnsHtml += `</div>`;
+                }
 
                 recListEl.innerHTML += `
                     <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-1 shadow relative">
@@ -809,7 +866,7 @@
                             <span class="text-sky-400 font-semibold">${rec.record_type || 'Bakım'}</span>
                             <div class="flex items-center gap-2">
                                 <span class="text-slate-400">${rec.record_date || ''}</span>
-                                ${deleteBtnHtml}
+                                ${actionBtnsHtml}
                             </div>
                         </div>
                         <p class="text-sm text-slate-200 mt-1">${rec.description}</p>
@@ -819,9 +876,63 @@
             });
         }
 
+        function openEditRecordModal(recordId) {
+            const rec = currentRecordsCache.find(r => r.id === recordId);
+            if (!rec) return;
+
+            document.getElementById('edit-rec-id').value = rec.id;
+            document.getElementById('edit-rec-type').value = rec.record_type || 'Periyodik Bakım';
+            document.getElementById('edit-rec-desc').value = rec.description || '';
+            document.getElementById('edit-rec-parts').value = rec.parts_replaced || '';
+
+            document.getElementById('edit-record-modal').classList.remove('hidden');
+        }
+
+        function closeEditRecordModal() {
+            document.getElementById('edit-record-modal').classList.add('hidden');
+        }
+
+        async function submitEditRecord() {
+            const rId = document.getElementById('edit-rec-id').value;
+            const type = document.getElementById('edit-rec-type').value;
+            const desc = document.getElementById('edit-rec-desc').value.trim();
+            const parts = document.getElementById('edit-rec-parts').value.trim();
+
+            if (!desc) {
+                alert('Lütfen bir açıklama girin!');
+                return;
+            }
+
+            const { error } = await supabaseClient
+                .from('maintenance_records')
+                .update({
+                    record_type: type,
+                    description: desc,
+                    parts_replaced: parts || '-'
+                })
+                .eq('id', rId);
+
+            if (error) {
+                alert('Kayıt güncellenirken bir hata oluştu!');
+                console.error(error);
+                return;
+            }
+
+            alert('Kayıt başarıyla güncellendi!');
+            closeEditRecordModal();
+
+            if (activeTableName === 'tum_arizalar') {
+                loadMachines();
+            } else {
+                loadRecordsForMachine();
+            }
+        }
+
         async function deleteRecord(recordId) {
-            if (!currentUser || currentUser.username !== 'mbendes') {
-                alert("Bu işlem için yetkiniz yok!");
+            const isMbendes = currentUser && (currentUser.username === 'mbendes' || currentUser.username === 'cetinkaya');
+
+            if (!isMbendes) {
+                alert("Bu kaydı silme yetkiniz yok!");
                 return;
             }
 
