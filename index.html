@@ -76,7 +76,10 @@
 
         <!-- Machine Detail & Records Section -->
         <div id="detail-section" class="hidden space-y-4">
-            <button onclick="backToDashboard()" class="bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg text-sky-400 mb-2">← Listeye Dön</button>
+            <!-- ÇOK DAHA BELİRGİN VE BÜYÜK LİSTEYE DÖN BUTONU -->
+            <button onclick="backToDashboard()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition transform active:scale-95 text-base border border-sky-400">
+                <span>⬅</span> <span>MAKİNE LİSTESİNE DÖN</span>
+            </button>
             
             <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow">
                 <h2 id="detail-machine-title" class="text-lg font-bold text-sky-400">Makine Adı</h2>
@@ -184,7 +187,7 @@
         let activeTableName = 'machines';
         let selectedMachineIds = new Set();
 
-        // 🛡️ KESİN GEÇMİŞ KİLİDİ: PWA modunda geri tuşunun uygulamayı kapatmasını engeller
+        // 🛡️ KESİN GEÇMİŞ KİLİDİ
         history.replaceState({ page: 'app' }, document.title, window.location.href);
         window.addEventListener('popstate', function (event) {
             history.pushState({ page: 'app' }, document.title, window.location.href);
@@ -203,7 +206,7 @@
             }
         });
 
-        // 💾 Sayfa ilk açıldığında localStorage'dan oturumu otomatik yükle
+        // 💾 Oturum Yönetimi
         window.addEventListener('DOMContentLoaded', () => {
             const savedUserJson = localStorage.getItem('iplik6_current_user');
             if (savedUserJson) {
@@ -268,7 +271,6 @@
             }
 
             currentUser = foundUser;
-            // Oturumu kalıcı olarak hafızaya kaydet
             localStorage.setItem('iplik6_current_user', JSON.stringify(currentUser));
             
             try {
@@ -296,7 +298,6 @@
                 currentCategoryFilter = 'ALL';
                 activeTableName = 'machines';
                 selectedMachineIds.clear();
-                // Hafızadaki oturumu tamamen temizle
                 localStorage.removeItem('iplik6_current_user');
                 
                 document.getElementById('username-input').value = '';
