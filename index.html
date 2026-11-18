@@ -184,7 +184,7 @@
         let activeTableName = 'machines';
         let selectedMachineIds = new Set();
 
-        // 🛡️ KESİN GEÇMİŞ KİLİDİ VE OTORİTE KONTROLÜ
+        // 🛡️ KESİN GEÇMİŞ KİLİDİ: PWA modunda geri tuşunun uygulamayı kapatmasını engeller
         history.replaceState({ page: 'app' }, document.title, window.location.href);
         window.addEventListener('popstate', function (event) {
             history.pushState({ page: 'app' }, document.title, window.location.href);
@@ -203,7 +203,7 @@
             }
         });
 
-        // Sayfa açıldığında hafızada kayıtlı oturum var mı kontrol et
+        // 💾 Sayfa ilk açıldığında localStorage'dan oturumu otomatik yükle
         window.addEventListener('DOMContentLoaded', () => {
             const savedUserJson = localStorage.getItem('iplik6_current_user');
             if (savedUserJson) {
@@ -268,6 +268,7 @@
             }
 
             currentUser = foundUser;
+            // Oturumu kalıcı olarak hafızaya kaydet
             localStorage.setItem('iplik6_current_user', JSON.stringify(currentUser));
             
             try {
@@ -295,6 +296,7 @@
                 currentCategoryFilter = 'ALL';
                 activeTableName = 'machines';
                 selectedMachineIds.clear();
+                // Hafızadaki oturumu tamamen temizle
                 localStorage.removeItem('iplik6_current_user');
                 
                 document.getElementById('username-input').value = '';
@@ -991,7 +993,7 @@
             const todayStr = new Date().toISOString().split('T')[0];
 
             const { error } = await supabaseClient.from('maintenance_records').insert([{
-                machine_id: machine.id > 9000 ? null : machine.id,
+                machine_id: selectedMachine.id > 9000 ? null : selectedMachine.id,
                 record_type: type,
                 description: fullDesc,
                 parts_replaced: fullParts,
