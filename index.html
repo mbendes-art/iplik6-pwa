@@ -437,7 +437,7 @@
                 if (activeTableName === 'machine_ringbobin' && currentCategoryFilter !== 'Paketleme') {
                     displayName = (machine.machine_name || '').trim();
                     if (!displayName) {
-                        displayName = machine.id <= 20 ? `RING-${machine.id}` : `BOBIN-${machine.id - 20}`;
+                        displayName = machine.id <= 20 ? `RING-${machine.id}` : `BOBİN-${machine.id - 20}`;
                     }
                     displayBrand = machine.id <= 20 ? 'RIETER' : 'MURATEC';
                     displayCode = machine.machine_no ? `Makine No: ${machine.machine_no}` : (machine.serial_no ? `Seri No: ${machine.serial_no}` : '');
@@ -499,8 +499,8 @@
         function getMachineGeneratedName(machine, allList) {
             if (activeTableName === 'machine_ringbobin' && currentCategoryFilter !== 'Paketleme') {
                 let nameVal = (machine.machine_name || '').trim();
-                if (nameVal) return nameVal.toUpperCase();
-                return machine.id <= 20 ? `RING-${machine.id}` : `BOBIN-${machine.id - 20}`;
+                if (nameVal) return nameVal; // Supabase'de ne yazıyorsa aynen al (örn: BOBİN-18)
+                return machine.id <= 20 ? `RING-${machine.id}` : `BOBİN-${machine.id - 20}`;
             } else if (machine._sourceTable === 'machine_compressors' || machine._sourceTable === 'machine_dryers') {
                 let comps = allList.filter(m => m._sourceTable === 'machine_compressors');
                 let dries = allList.filter(m => m._sourceTable === 'machine_dryers');
@@ -555,13 +555,14 @@
             document.getElementById('dashboard-section').classList.remove('hidden');
         }
 
-        // KESİN TOLERANSLI GEÇMİŞ KAYITLARI ÇEKME FONKSİYONU
+        // TAM KAPSAMLI VE %100 TOLERANSLI GEÇMİŞ KAYITLARI ÇEKME FONKSİYONU
         async function loadRecordsForMachine() {
             const recListEl = document.getElementById('records-list');
             recListEl.innerHTML = '<p class="text-center text-slate-400 py-4">Kayıtlar yükleniyor...</p>';
 
             const mId = selectedMachine.id;
-            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); // Örn: BOBİN-1 veya BOBIN-1
+            const machineNum = mId <= 20 ? mId : mId - 20;
+            const isRing = mId <= 20;
 
             const { data, error } = await supabaseClient
                 .from('maintenance_records')
@@ -576,16 +577,27 @@
 
             recListEl.innerHTML = '';
             
-            // Türkçe/İngilizce İ/i harf farkına takılmadan esnek filtreleme (BOBİN-1 veya BOBIN-1 eşleşir)
+            // [IPL6-BOBİN-18], [IPL6-BOBIN-18], [BOBİN-18], [BOBIN-18] gibi tüm varyasyonları normalize ederek yakalar
             let filteredRecords = (data || []).filter(rec => {
-                const desc = normalize(rec.description || '');
-                let cleanCode = mCode.replace(/İ/g, 'i').replace(/İ/g, 'i');
-                const targetTag1 = normalize(`[${mCode}]`);
-                const targetTag2 = normalize(`[${cleanCode}]`);
-                const targetTag3 = normalize(`[bobin-${selectedMachine.id - 20}]`);
-                const targetTag4 = normalize(`[bobın-${selectedMachine.id - 20}]`);
+                const descNorm = normalize(rec.description || '');
                 
-                return desc.includes(targetTag1) || desc.includes(targetTag2) || (mId > 20 && (desc.includes(targetTag3) || desc.includes(targetTag4)));
+                if (isRing) {
+                    return descNorm.includes('ring') && (
+                        descNorm.includes(`ring-${machineNum}`) || 
+                        descNorm.includes(`ring${machineNum}`) || 
+                        descNorm.includes(`-${machineNum}]`) || 
+                        descNorm.includes(` ${machineNum} `)
+                    );
+                } else {
+                    return (descNorm.includes('bobin') || descNorm.includes('bobın')) && (
+                        descNorm.includes(`bobin-${machineNum}`) || 
+                        descNorm.includes(`bobın-${machineNum}`) || 
+                        descNorm.includes(`bobin${machineNum}`) || 
+                        descNorm.includes(`bobın${machineNum}`) || 
+                        descNorm.includes(`-${machineNum}]`) || 
+                        descNorm.includes(` ${machineNum} `)
+                    );
+                }
             });
 
             if(filteredRecords.length === 0) {
@@ -662,7 +674,7 @@
             let code = normalize(machine.code || machine.name || machine.machine_name || '');
             if (code.includes('ring') || code.includes('bobin') || activeTableName === 'machine_ringbobin') {
                 let nameVal = (machine.machine_name || '').trim();
-                if (nameVal) return nameVal.toUpperCase();
+                if (nameVal) return nameVal;
                 return machine.id <= 20 ? `RING-${machine.id}` : `BOBİN-${machine.id - 20}`;
             }
             if (machine._sourceTable === 'machine_ihzarat' || normalize(machine.machine_name || '').includes('harman')) {
@@ -692,10 +704,10 @@
                 return;
             }
 
-            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); // Örn: BOBİN-1
+            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); // Örn: BOBİN-18
 
-            const fullDesc = `[${mCode}] ${desc}`;
-            const fullParts = parts ? `${mCode} | ${parts}` : '-';
+            const fullDesc = `[IPL6-${mCode}] ${desc}`;
+            const fullParts = parts ? `IPL6-${mCode} | ${parts}` : '-';
             const todayStr = new Date().toISOString().split('T')[0];
 
             const { error } = await supabaseClient.from('maintenance_records').insert([{
