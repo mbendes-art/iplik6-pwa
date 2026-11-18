@@ -435,7 +435,6 @@
                 let displayBrand = machine._brand || machine.brand || 'Rieter';
 
                 if (activeTableName === 'machine_ringbobin' && currentCategoryFilter !== 'Paketleme') {
-                    // Supabase'deki machine_name sütununu doğrudan kullan (RING-1, BOBIN-1 vb.)
                     displayName = (machine.machine_name || '').trim();
                     if (!displayName) {
                         displayName = machine.id <= 20 ? `RING-${machine.id}` : `BOBIN-${machine.id - 20}`;
@@ -500,7 +499,7 @@
         function getMachineGeneratedName(machine, allList) {
             if (activeTableName === 'machine_ringbobin' && currentCategoryFilter !== 'Paketleme') {
                 let nameVal = (machine.machine_name || '').trim();
-                if (nameVal) return nameVal;
+                if (nameVal) return nameVal.toUpperCase();
                 return machine.id <= 20 ? `RING-${machine.id}` : `BOBIN-${machine.id - 20}`;
             } else if (machine._sourceTable === 'machine_compressors' || machine._sourceTable === 'machine_dryers') {
                 let comps = allList.filter(m => m._sourceTable === 'machine_compressors');
@@ -556,13 +555,13 @@
             document.getElementById('dashboard-section').classList.remove('hidden');
         }
 
-        // KESİN İZOLASYONLU GEÇMİŞ KAYITLARI ÇEKME FONKSİYONU
+        // KESİN TOLERANSLI GEÇMİŞ KAYITLARI ÇEKME FONKSİYONU
         async function loadRecordsForMachine() {
             const recListEl = document.getElementById('records-list');
             recListEl.innerHTML = '<p class="text-center text-slate-400 py-4">Kayıtlar yükleniyor...</p>';
 
             const mId = selectedMachine.id;
-            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); // Örn: BOBIN-1
+            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); // Örn: BOBİN-1 veya BOBIN-1
 
             const { data, error } = await supabaseClient
                 .from('maintenance_records')
@@ -577,11 +576,16 @@
 
             recListEl.innerHTML = '';
             
-            // Açıklama içinde [BOBIN-1] veya [bobin-1] etiketini arar
+            // Türkçe/İngilizce İ/i harf farkına takılmadan esnek filtreleme (BOBİN-1 veya BOBIN-1 eşleşir)
             let filteredRecords = (data || []).filter(rec => {
                 const desc = normalize(rec.description || '');
-                const targetTag = normalize(`[${mCode}]`);
-                return desc.includes(targetTag);
+                let cleanCode = mCode.replace(/İ/g, 'i').replace(/İ/g, 'i');
+                const targetTag1 = normalize(`[${mCode}]`);
+                const targetTag2 = normalize(`[${cleanCode}]`);
+                const targetTag3 = normalize(`[bobin-${selectedMachine.id - 20}]`);
+                const targetTag4 = normalize(`[bobın-${selectedMachine.id - 20}]`);
+                
+                return desc.includes(targetTag1) || desc.includes(targetTag2) || (mId > 20 && (desc.includes(targetTag3) || desc.includes(targetTag4)));
             });
 
             if(filteredRecords.length === 0) {
@@ -658,8 +662,8 @@
             let code = normalize(machine.code || machine.name || machine.machine_name || '');
             if (code.includes('ring') || code.includes('bobin') || activeTableName === 'machine_ringbobin') {
                 let nameVal = (machine.machine_name || '').trim();
-                if (nameVal) return nameVal;
-                return machine.id <= 20 ? `RING-${machine.id}` : `BOBIN-${machine.id - 20}`;
+                if (nameVal) return nameVal.toUpperCase();
+                return machine.id <= 20 ? `RING-${machine.id}` : `BOBİN-${machine.id - 20}`;
             }
             if (machine._sourceTable === 'machine_ihzarat' || normalize(machine.machine_name || '').includes('harman')) {
                 let rName = machine.machine_name || machine.name || '';
@@ -688,7 +692,7 @@
                 return;
             }
 
-            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); // Örn: BOBIN-1
+            let mCode = getMachineGeneratedName(selectedMachine, allMachinesCache); // Örn: BOBİN-1
 
             const fullDesc = `[${mCode}] ${desc}`;
             const fullParts = parts ? `${mCode} | ${parts}` : '-';
