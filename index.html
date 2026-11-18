@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-
-    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>İplik 6 Bakım Takip PWA</title>
@@ -65,7 +63,7 @@
                 <button onclick="setCategoryFilter('ALL', 'machines')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2">Tümü</button>
             </div>
 
-            <!-- TOPLU İŞLEM KONTROL ÇUBUĞU (ANA SAYfADA GÖRÜNÜR) -->
+            <!-- TOPLU İŞLEM KONTROL ÇUBUĞU (ANA SAYFADA GÖRÜNÜR) -->
             <div id="bulk-action-bar" class="hidden bg-sky-900/40 border border-sky-500/40 p-3 rounded-xl flex justify-between items-center shadow-lg">
                 <span id="selected-count" class="text-xs text-sky-300 font-medium">0 makine seçildi</span>
                 <button onclick="openBulkModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-2 rounded-lg font-semibold transition shadow">⚡ Toplu Kayıt Ekle</button>
@@ -186,7 +184,7 @@
         let activeTableName = 'machines';
         let selectedMachineIds = new Set();
 
-        // 🛡️ KESİN GEÇMİŞ KİLİDİ: Geri tuşuna basıldığında geçmiş yığınını sürekli tazeleyerek çıkışı engeller
+        // 🛡️ KESİN GEÇMİŞ KİLİDİ
         history.replaceState({ page: 'app' }, document.title, window.location.href);
         window.addEventListener('popstate', function (event) {
             history.pushState({ page: 'app' }, document.title, window.location.href);
@@ -202,7 +200,6 @@
                 } else if (!detailSec.classList.contains('hidden')) {
                     backToDashboard();
                 }
-                // Ana sayfada veya giriş ekranındayken sol ok basılsa bile geçmiş yığını korunduğu için program kapanmaz/çıkış yapmaz
             }
         });
 
@@ -585,15 +582,15 @@
 
                 listEl.innerHTML += `
                     <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex items-center justify-between shadow">
-                        <div class="flex items-center gap-3 flex-1 cursor-pointer" onclick="openMachineDetail(${machine.id})">
+                        <div class="flex items-center gap-3 flex-1 cursor-pointer pr-2" onclick="openMachineDetail(${machine.id})">
                             <div>
                                 <h3 class="font-bold text-sky-400 text-sm">${displayName}</h3>
                                 <p class="text-xs text-slate-400">Konum: ${displayLoc} | ${subInfo}</p>
                             </div>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <input type="checkbox" data-id="${machine.id}" ${isChecked} onchange="toggleMachineSelection(${machine.id}, this)" class="w-5 h-5 accent-sky-600 rounded cursor-pointer">
-                            <button onclick="openMachineDetail(${machine.id})" class="bg-slate-700 hover:bg-slate-600 text-xs px-2.5 py-1.5 rounded-lg text-slate-300">Seç →</button>
+                        <div class="flex items-center gap-4 pl-3 border-l border-slate-700/60">
+                            <input type="checkbox" data-id="${machine.id}" ${isChecked} onchange="toggleMachineSelection(${machine.id}, this)" class="w-6 h-6 accent-sky-600 rounded cursor-pointer">
+                            <button onclick="openMachineDetail(${machine.id})" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded-lg text-slate-300 font-medium">Seç →</button>
                         </div>
                     </div>
                 `;
@@ -709,7 +706,7 @@
                 if (normalize(rawName).includes('harman')) {
                     return `HARMAN-${rawNo}`.toUpperCase();
                 }
-                return rawNo ? `${rawName}-${rawNo}` : rawName;
+                return rawNo ? `${rawName}-${rawNo}` : rawNo;
             } else {
                 return machine.code || machine.name || '';
             }
@@ -961,7 +958,7 @@
             const parts = document.getElementById('rec-parts').value.trim();
             
             if(!desc) {
-                alert('Lütfen bir açıklama girin!');
+                alert('Lütfen bir açıklama girinนิ!');
                 return;
             }
 
