@@ -56,9 +56,14 @@
 
         <!-- Dashboard Section -->
         <div id="dashboard-section" class="hidden space-y-4">
-            <button onclick="setCategoryFilter('TUM_ARIZALAR', 'tum_arizalar')" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition text-base border border-amber-400">
-                <span>📋</span> <span>TÜM ARIZALARI GÖSTER</span>
-            </button>
+            <div class="grid grid-cols-1 gap-2">
+                <button onclick="setCategoryFilter('TUM_ARIZALAR', 'tum_arizalar')" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition text-base border border-amber-400">
+                    <span>📋</span> <span>TÜM ARIZALARI GÖSTER</span>
+                </button>
+                <button id="open-requests-btn" onclick="openRequestsSection()" class="hidden w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition text-sm border border-indigo-400">
+                    <span>📨</span> <span>BİRİMLER ARASI TALEPLER</span>
+                </button>
+            </div>
 
             <div class="flex justify-between items-center">
                 <h2 id="section-title" class="text-lg font-semibold">Makine Listesi</h2>
@@ -87,6 +92,43 @@
             </div>
         </div>
 
+        <!-- Department Requests Section -->
+        <div id="requests-section" class="hidden space-y-4">
+            <button onclick="backToDashboardFromRequests()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition text-sm border border-sky-400">
+                <span>⬅</span> <span>MAKİNE LİSTESİNE DÖN</span>
+            </button>
+
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-indigo-400">📨 Birimler Arası Talepler</h2>
+                <button onclick="loadDepartmentRequests()" class="bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg text-sky-400">Yenile</button>
+            </div>
+
+            <button onclick="openNewRequestModal()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow">➕ Yeni Talep Oluştur</button>
+
+            <!-- Talep Görünüm Filtreleri -->
+            <div class="grid grid-cols-3 gap-2 text-xs">
+                <button id="req-tab-all" onclick="setRequestTab('ALL')" class="bg-indigo-600 text-white px-2.5 py-2 rounded-lg font-medium transition text-center">Tümü</button>
+                <button id="req-tab-incoming" onclick="setRequestTab('INCOMING')" class="bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-2.5 py-2 rounded-lg font-medium transition text-center">Birimime Gelen</button>
+                <button id="req-tab-mine" onclick="setRequestTab('MINE')" class="bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-2.5 py-2 rounded-lg font-medium transition text-center">Açtıklarım</button>
+            </div>
+
+            <!-- Birim Filtresi -->
+            <div>
+                <select id="req-dept-filter" onchange="renderDepartmentRequests()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                    <option value="">Tüm Birimler (Gönderen / Hedef)</option>
+                    <option value="Personel">Personel</option>
+                    <option value="Muhasebe">Muhasebe</option>
+                    <option value="Ticaret">Ticaret</option>
+                    <option value="İşletme Yönetimi">İşletme Yönetimi</option>
+                    <option value="Bakım / Teknik">Bakım / Teknik</option>
+                </select>
+            </div>
+
+            <div id="requests-list" class="space-y-3 pb-6">
+                <!-- Talepler buraya yüklenecek -->
+            </div>
+        </div>
+
         <!-- Machine Detail & Records Section -->
         <div id="detail-section" class="hidden space-y-4">
             <button onclick="backToDashboard()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition transform active:scale-95 text-base border border-sky-400">
@@ -110,6 +152,88 @@
         </div>
 
     </main>
+
+    <!-- Yeni Talep Oluştur Modal -->
+    <div id="new-request-modal" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h3 id="request-modal-title" class="text-lg font-bold text-indigo-400">Yeni Birimler Arası Talep</h3>
+            <input type="hidden" id="req-id">
+
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Gönderen Birim</label>
+                    <select id="req-from-dept" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+                        <option value="Personel">Personel</option>
+                        <option value="Muhasebe">Muhasebe</option>
+                        <option value="Ticaret">Ticaret</option>
+                        <option value="İşletme Yönetimi">İşletme Yönetimi</option>
+                        <option value="Bakım / Teknik">Bakım / Teknik</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Hedef Birim</label>
+                    <select id="req-to-dept" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+                        <option value="İşletme Yönetimi">İşletme Yönetimi</option>
+                        <option value="Muhasebe">Muhasebe</option>
+                        <option value="Ticaret">Ticaret</option>
+                        <option value="Personel">Personel</option>
+                        <option value="Bakım / Teknik">Bakım / Teknik</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Öncelik</label>
+                <select id="req-priority" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white">
+                    <option value="Normal" selected>Normal</option>
+                    <option value="Acil">Acil</option>
+                    <option value="Düşük">Düşük</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Talep Konusu</label>
+                <input type="text" id="req-subject" placeholder="Örn: Yedek parça siparişi, vardiya onayı, fatura..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+            </div>
+
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Detay Açıklama</label>
+                <textarea id="req-details" rows="3" placeholder="Talep detaylarını yazın..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"></textarea>
+            </div>
+
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeNewRequestModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2.5 rounded-lg text-sm transition">İptal</button>
+                <button id="submit-request-btn" onclick="submitDepartmentRequest()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2.5 rounded-lg text-sm font-semibold transition">Talebi Gönder</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Talep Durum / Yanıt Güncelle Modal -->
+    <div id="update-request-modal" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl space-y-3 shadow-2xl">
+            <h3 class="text-lg font-bold text-amber-400">Talep Durumu ve Yanıt</h3>
+            <input type="hidden" id="upd-req-id">
+            <p id="upd-req-summary" class="text-xs text-slate-300 bg-slate-900/80 p-2.5 rounded-lg border border-slate-700"></p>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Durum</label>
+                <select id="upd-req-status" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white">
+                    <option value="Açık">Açık</option>
+                    <option value="İnceleniyor">İnceleniyor</option>
+                    <option value="Onaylandı">Onaylandı</option>
+                    <option value="Tamamlandı">Tamamlandı</option>
+                    <option value="Reddedildi">Reddedildi</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Birim Yanıtı / Not</label>
+                <textarea id="upd-req-note" rows="3" placeholder="Onay, bilgilendirme veya dönüş notu yazın..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-amber-500"></textarea>
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeUpdateRequestModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2.5 rounded-lg text-sm transition">İptal</button>
+                <button onclick="submitRequestUpdate()" class="flex-1 bg-amber-600 hover:bg-amber-500 py-2.5 rounded-lg text-sm font-semibold transition">Güncelle</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Giriş Logları Modal -->
     <div id="logs-modal" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
@@ -226,23 +350,27 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         const USERS = [
-            { username: "mbendes", name: "M. Mendes (Yönetici)", role: "ALL_FACTORY", machines: ["FIKSE_KAZANI"] },
-            { username: "cetinkaya", name: "Çetinkaya (Yönetici)", role: "ALL_FACTORY", machines: ["FIKSE_KAZANI"] },
-            { username: "m_altuntas", name: "Mustafa Altuntaş", role: "KLIMA", machines: ["FIKSE_KAZANI"] },
-            { username: "r_sahin", name: "R. Şahin", role: "ALL_FACTORY", machines: ["FIKSE_KAZANI"] },
-            { username: "n_erturk", name: "N. Ertürk", role: "ALL_FACTORY", machines: ["FIKSE_KAZANI"] },
-            { username: "g_albayrak", name: "G. Albayrak", role: "ALL_FACTORY", machines: ["FIKSE_KAZANI"] },
-            { username: "g_goktas", name: "G. Göktaş", role: "IHZARAT" },
-            { username: "a_gultekin", name: "A. Gültekin", role: "IHZARAT" },
-            { username: "a_ozturk", name: "A. Öztürk", role: "IHZARAT" },
-            { username: "f_duran", name: "F. Duran", role: "IHZARAT" },
-            { username: "r_evler", name: "R. Evler", role: "IHZARAT" },
-            { username: "g_gumus", name: "G. Gümüş", role: "IHZARAT" },
-            { username: "a_aslan", name: "A. Aslan", role: "RING_BOBIN" },
-            { username: "m_karahan", name: "M. Karahan", role: "RING_BOBIN" },
-            { username: "m_bay", name: "M. Bay", role: "RING_BOBIN" },
-            { username: "e_candan", name: "E. Candan", role: "RING_BOBIN" },
-            { username: "l_yasar", name: "L. Yaşar", role: "RING_BOBIN" }
+            { username: "mbendes", name: "Mahmut Bendeş (Makine-Enerji Müdürü)", role: "ALL_FACTORY", dept: "İşletme Yönetimi", machines: ["FIKSE_KAZANI"] },
+            { username: "obaykus", name: "Onur Baykuş (İşletme Müdürü)", role: "ALL_FACTORY", dept: "İşletme Yönetimi", machines: ["FIKSE_KAZANI"] },
+            { username: "cetinkaya", name: "Çetinkaya (Yönetici)", role: "ALL_FACTORY", dept: "İşletme Yönetimi", machines: ["FIKSE_KAZANI"] },
+            { username: "m_altuntas", name: "Mustafa Altuntaş", role: "KLIMA", dept: "Bakım / Teknik", machines: ["FIKSE_KAZANI"] },
+            { username: "r_sahin", name: "R. Şahin", role: "ALL_FACTORY", dept: "Bakım / Teknik", machines: ["FIKSE_KAZANI"] },
+            { username: "n_erturk", name: "N. Ertürk", role: "ALL_FACTORY", dept: "Bakım / Teknik", machines: ["FIKSE_KAZANI"] },
+            { username: "g_albayrak", name: "G. Albayrak", role: "ALL_FACTORY", dept: "Bakım / Teknik", machines: ["FIKSE_KAZANI"] },
+            { username: "g_goktas", name: "G. Göktaş", role: "IHZARAT", dept: "Bakım / Teknik" },
+            { username: "a_gultekin", name: "A. Gültekin", role: "IHZARAT", dept: "Bakım / Teknik" },
+            { username: "a_ozturk", name: "A. Öztürk", role: "IHZARAT", dept: "Bakım / Teknik" },
+            { username: "f_duran", name: "F. Duran", role: "IHZARAT", dept: "Bakım / Teknik" },
+            { username: "r_evler", name: "R. Evler", role: "IHZARAT", dept: "Bakım / Teknik" },
+            { username: "g_gumus", name: "G. Gümüş", role: "IHZARAT", dept: "Bakım / Teknik" },
+            { username: "a_aslan", name: "A. Aslan", role: "RING_BOBIN", dept: "Bakım / Teknik" },
+            { username: "m_karahan", name: "M. Karahan", role: "RING_BOBIN", dept: "Bakım / Teknik" },
+            { username: "m_bay", name: "M. Bay", role: "RING_BOBIN", dept: "Bakım / Teknik" },
+            { username: "e_candan", name: "E. Candan", role: "RING_BOBIN", dept: "Bakım / Teknik" },
+            { username: "l_yasar", name: "L. Yaşar", role: "RING_BOBIN", dept: "Bakım / Teknik" },
+            { username: "ydemir", name: "Yusuf Demir (Personel Müdürü)", role: "PERSONEL", dept: "Personel" },
+            { username: "ykekeç", name: "Yıldızhan Kekçoğlu (Muhasebe)", role: "MUHASEBE", dept: "Muhasebe" },
+            { username: "mtekin", name: "Murat Tekin (Ticaret Şefi)", role: "TICARET", dept: "Ticaret" }
         ];
 
         const FIKSE_KAZANI_USERS = ["m_altuntas", "r_sahin", "n_erturk", "g_albayrak"];
@@ -254,6 +382,8 @@
         let activeTableName = 'machine_ringbobin';
         let selectedMachineIds = new Set();
         let currentRecordsCache = [];
+        let departmentRequestsCache = [];
+        let currentRequestTab = 'ALL';
 
         // 🛡️ KESİN GEÇMİŞ KİLİDİ
         history.replaceState({ page: 'app' }, document.title, window.location.href);
@@ -261,12 +391,19 @@
             history.pushState({ page: 'app' }, document.title, window.location.href);
             if (currentUser) {
                 const detailSec = document.getElementById('detail-section');
+                const reqSec = document.getElementById('requests-section');
                 const recordModal = document.getElementById('record-modal');
                 const editModal = document.getElementById('edit-record-modal');
                 const logsModal = document.getElementById('logs-modal');
                 const bulkModal = document.getElementById('bulk-modal');
+                const newReqModal = document.getElementById('new-request-modal');
+                const updReqModal = document.getElementById('update-request-modal');
 
-                if (!recordModal.classList.contains('hidden')) {
+                if (!newReqModal.classList.contains('hidden')) {
+                    closeNewRequestModal();
+                } else if (!updReqModal.classList.contains('hidden')) {
+                    closeUpdateRequestModal();
+                } else if (!recordModal.classList.contains('hidden')) {
                     closeAddRecordModal();
                 } else if (!editModal.classList.contains('hidden')) {
                     closeEditRecordModal();
@@ -276,26 +413,49 @@
                     closeBulkModal();
                 } else if (!detailSec.classList.contains('hidden')) {
                     backToDashboard();
+                } else if (!reqSec.classList.contains('hidden')) {
+                    backToDashboardFromRequests();
                 }
             }
         });
+
+        function applyUserSessionUI() {
+            document.getElementById('user-info').innerText = currentUser.name;
+            document.getElementById('role-badge').innerText = `Rol: ${currentUser.role}`;
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.remove('hidden');
+            document.getElementById('logout-btn').classList.remove('hidden');
+
+            if (currentUser.username === 'mbendes') {
+                document.getElementById('view-logs-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('view-logs-btn').classList.add('hidden');
+            }
+
+            if (currentUser.role !== 'OPERATOR') {
+                document.getElementById('open-requests-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('open-requests-btn').classList.add('hidden');
+            }
+        }
 
         // 💾 Oturum Yönetimi
         window.addEventListener('DOMContentLoaded', () => {
             const savedUserJson = localStorage.getItem('iplik6_current_user');
             if (savedUserJson) {
                 try {
-                    currentUser = JSON.parse(savedUserJson);
-                    document.getElementById('user-info').innerText = currentUser.name;
-                    document.getElementById('role-badge').innerText = `Rol: ${currentUser.role}`;
-                    document.getElementById('login-section').classList.add('hidden');
-                    document.getElementById('dashboard-section').classList.remove('hidden');
-                    document.getElementById('logout-btn').classList.remove('hidden');
-
-                    if (currentUser.username === 'mbendes') {
-                        document.getElementById('view-logs-btn').classList.remove('hidden');
+                    const savedUser = JSON.parse(savedUserJson);
+                    const registeredUser = USERS.find(u => normalize(u.username) === normalize(savedUser.username));
+                    if (registeredUser) {
+                        currentUser = registeredUser;
+                    } else if (savedUser.username === 'operator' && savedUser.role === 'OPERATOR') {
+                        currentUser = savedUser;
+                    } else {
+                        localStorage.removeItem('iplik6_current_user');
+                        return;
                     }
-
+                    localStorage.setItem('iplik6_current_user', JSON.stringify(currentUser));
+                    applyUserSessionUI();
                     setupCategoryPills();
                     loadMachines();
                 } catch(e) {
@@ -339,7 +499,7 @@
         function isPaketMachine(machine) {
             const c = normalize(machine.code || '');
             const n = normalize(machine.name || machine.machine_name || '');
-            return c.includes('paket') || n.includes('paket') || c.includes('pak') || n.includes('pak');
+            return c.includes('paket') || n.includes('paket') || c.includes('pak');
         }
 
         async function handleLogin() {
@@ -367,18 +527,7 @@
                 }]);
             } catch(e) {}
 
-            document.getElementById('user-info').innerText = currentUser.name;
-            document.getElementById('role-badge').innerText = `Rol: ${currentUser.role}`;
-            document.getElementById('login-section').classList.add('hidden');
-            document.getElementById('dashboard-section').classList.remove('hidden');
-            document.getElementById('logout-btn').classList.remove('hidden');
-
-            if (currentUser.username === 'mbendes') {
-                document.getElementById('view-logs-btn').classList.remove('hidden');
-            } else {
-                document.getElementById('view-logs-btn').classList.add('hidden');
-            }
-
+            applyUserSessionUI();
             setupCategoryPills();
             loadMachines();
         }
@@ -388,16 +537,12 @@
             currentUser = {
                 username: "operator",
                 name: "İşletme Operatörü",
-                role: "OPERATOR"
+                role: "OPERATOR",
+                dept: "İşletme"
             };
             localStorage.setItem('iplik6_current_user', JSON.stringify(currentUser));
 
-            document.getElementById('user-info').innerText = currentUser.name;
-            document.getElementById('role-badge').innerText = `Rol: Operatör`;
-            document.getElementById('login-section').classList.add('hidden');
-            document.getElementById('dashboard-section').classList.remove('hidden');
-            document.getElementById('logout-btn').classList.remove('hidden');
-
+            applyUserSessionUI();
             setupCategoryPills();
             await setCategoryFilter('TUM_ARIZALAR', 'tum_arizalar');
         }
@@ -414,15 +559,317 @@
                 
                 document.getElementById('username-input').value = '';
                 document.getElementById('detail-section').classList.add('hidden');
+                document.getElementById('requests-section').classList.add('hidden');
                 document.getElementById('dashboard-section').classList.add('hidden');
                 document.getElementById('login-section').classList.remove('hidden');
                 document.getElementById('logout-btn').classList.add('hidden');
                 document.getElementById('view-logs-btn').classList.add('hidden');
+                document.getElementById('open-requests-btn').classList.add('hidden');
                 document.getElementById('user-info').innerText = 'Giriş Yapılmadı';
                 document.getElementById('role-badge').innerText = 'Rol: -';
                 document.getElementById('machine-list').innerHTML = '';
                 document.getElementById('bulk-action-bar').classList.add('hidden');
             }
+        }
+
+        // 📨 BİRİMLER ARASI TALEPLER İŞLEMLERİ
+        async function openRequestsSection() {
+            if (!currentUser || currentUser.role === 'OPERATOR') return;
+            document.getElementById('dashboard-section').classList.add('hidden');
+            document.getElementById('detail-section').classList.add('hidden');
+            document.getElementById('requests-section').classList.remove('hidden');
+            await loadDepartmentRequests();
+        }
+
+        function backToDashboardFromRequests() {
+            document.getElementById('requests-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.remove('hidden');
+        }
+
+        function setRequestTab(tab) {
+            currentRequestTab = tab;
+            const tabs = {
+                ALL: document.getElementById('req-tab-all'),
+                INCOMING: document.getElementById('req-tab-incoming'),
+                MINE: document.getElementById('req-tab-mine')
+            };
+            Object.entries(tabs).forEach(([key, el]) => {
+                if (!el) return;
+                el.className = key === tab
+                    ? 'bg-indigo-600 text-white px-2.5 py-2 rounded-lg font-medium transition text-center'
+                    : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-2.5 py-2 rounded-lg font-medium transition text-center';
+            });
+            renderDepartmentRequests();
+        }
+
+        function openNewRequestModal() {
+            const defaultFrom = currentUser?.dept || 'Personel';
+            const fromSelect = document.getElementById('req-from-dept');
+            const exists = Array.from(fromSelect.options).some(o => o.value === defaultFrom);
+            fromSelect.value = exists ? defaultFrom : 'Personel';
+
+            document.getElementById('req-id').value = '';
+            document.getElementById('request-modal-title').innerText = 'Yeni Birimler Arası Talep';
+            document.getElementById('submit-request-btn').innerText = 'Talebi Gönder';
+            document.getElementById('req-to-dept').value = 'İşletme Yönetimi';
+            document.getElementById('req-priority').value = 'Normal';
+            document.getElementById('req-subject').value = '';
+            document.getElementById('req-details').value = '';
+            document.getElementById('new-request-modal').classList.remove('hidden');
+        }
+
+        function openEditDepartmentRequestModal(reqId) {
+            const req = departmentRequestsCache.find(r => String(r.id) === String(reqId));
+            if (!currentUser || !req || req.requester_username !== currentUser.username) return;
+
+            document.getElementById('req-id').value = req.id;
+            document.getElementById('request-modal-title').innerText = 'Birimler Arası Talebi Düzenle';
+            document.getElementById('submit-request-btn').innerText = 'Değişiklikleri Kaydet';
+            document.getElementById('req-from-dept').value = req.from_dept || currentUser.dept || 'Personel';
+            document.getElementById('req-to-dept').value = req.to_dept || 'İşletme Yönetimi';
+            document.getElementById('req-priority').value = req.priority || 'Normal';
+            document.getElementById('req-subject').value = req.subject || '';
+            document.getElementById('req-details').value = req.details || '';
+            document.getElementById('new-request-modal').classList.remove('hidden');
+        }
+
+        function closeNewRequestModal() {
+            document.getElementById('new-request-modal').classList.add('hidden');
+        }
+
+        async function submitDepartmentRequest() {
+            if (!currentUser || currentUser.role === 'OPERATOR') return;
+
+            const fromDept = document.getElementById('req-from-dept').value;
+            const toDept = document.getElementById('req-to-dept').value;
+            const priority = document.getElementById('req-priority').value;
+            const subject = document.getElementById('req-subject').value.trim();
+            const details = document.getElementById('req-details').value.trim();
+
+            if (!subject || !details) {
+                alert('Lütfen talep konusunu ve detay açıklamasını girin!');
+                return;
+            }
+
+            const reqId = document.getElementById('req-id').value;
+            let query;
+            if (reqId) {
+                const req = departmentRequestsCache.find(r => String(r.id) === String(reqId));
+                if (!req || req.requester_username !== currentUser.username) {
+                    alert('Bu talebi düzenleme yetkiniz yok!');
+                    return;
+                }
+
+                query = supabaseClient
+                    .from('department_requests')
+                    .update({
+                        from_dept: fromDept,
+                        to_dept: toDept,
+                        priority: priority,
+                        subject: subject,
+                        details: details
+                    })
+                    .eq('id', reqId)
+                    .eq('requester_username', currentUser.username);
+            } else {
+                query = supabaseClient
+                    .from('department_requests')
+                    .insert([{
+                        requester_username: currentUser.username,
+                        requester_name: currentUser.name,
+                        from_dept: fromDept,
+                        to_dept: toDept,
+                        priority: priority,
+                        subject: subject,
+                        details: details,
+                        status: 'Açık',
+                        response_note: ''
+                    }]);
+            }
+
+            const { error } = await query;
+
+            if (error) {
+                alert(reqId ? 'Talep güncellenirken bir hata oluştu!' : 'Talep kaydedilirken bir hata oluştu!');
+                console.error(error);
+                return;
+            }
+
+            alert(reqId ? 'Talep başarıyla güncellendi.' : 'Talep başarıyla gönderildi.');
+            closeNewRequestModal();
+            await loadDepartmentRequests();
+        }
+
+        async function loadDepartmentRequests() {
+            const listEl = document.getElementById('requests-list');
+            listEl.innerHTML = '<p class="text-center text-slate-400 py-4">Talepler yükleniyor...</p>';
+
+            const { data, error } = await supabaseClient
+                .from('department_requests')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(300);
+
+            if (error) {
+                listEl.innerHTML = '<p class="text-red-400 text-center">Talepler yüklenirken hata oluştu.</p>';
+                console.error(error);
+                return;
+            }
+
+            departmentRequestsCache = data || [];
+            renderDepartmentRequests();
+        }
+
+        function getStatusBadgeClass(status) {
+            switch (status) {
+                case 'Onaylandı':
+                case 'Tamamlandı':
+                    return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+                case 'İnceleniyor':
+                    return 'bg-sky-500/20 text-sky-300 border-sky-500/40';
+                case 'Reddedildi':
+                    return 'bg-red-500/20 text-red-300 border-red-500/40';
+                default:
+                    return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+            }
+        }
+
+        function getPriorityBadgeClass(priority) {
+            if (priority === 'Acil') return 'text-red-400 font-bold';
+            if (priority === 'Düşük') return 'text-slate-400';
+            return 'text-amber-300 font-medium';
+        }
+
+        function renderDepartmentRequests() {
+            const listEl = document.getElementById('requests-list');
+            const deptFilter = document.getElementById('req-dept-filter').value;
+            const userDept = currentUser?.dept || '';
+
+            let filtered = departmentRequestsCache.slice();
+
+            if (currentRequestTab === 'INCOMING') {
+                filtered = filtered.filter(r => r.to_dept === userDept || currentUser?.role === 'ALL_FACTORY');
+            } else if (currentRequestTab === 'MINE') {
+                filtered = filtered.filter(r => r.requester_username === currentUser?.username);
+            }
+
+            if (deptFilter) {
+                filtered = filtered.filter(r => r.from_dept === deptFilter || r.to_dept === deptFilter);
+            }
+
+            listEl.innerHTML = '';
+            if (filtered.length === 0) {
+                listEl.innerHTML = '<p class="text-center text-slate-500 py-4">Gösterilecek talep bulunamadı.</p>';
+                return;
+            }
+
+            filtered.forEach(req => {
+                const statusClass = getStatusBadgeClass(req.status || 'Açık');
+                const priorityClass = getPriorityBadgeClass(req.priority || 'Normal');
+                const dateText = formatRecordDate(req.created_at);
+                const requesterActions = req.requester_username === currentUser?.username
+                    ? `<button onclick="openEditDepartmentRequestModal(${req.id})" class="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 px-2.5 py-1.5 rounded-lg text-xs font-medium transition">Düzenle</button>
+                                <button onclick="deleteDepartmentRequest('${escapeHtml(String(req.id))}')" class="bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/40 px-2.5 py-1.5 rounded-lg text-xs font-medium transition">Sil</button>`
+                    : '';
+
+                listEl.innerHTML += `
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-2 shadow">
+                        <div class="flex justify-between items-start gap-2">
+                            <div>
+                                <span class="text-xs font-bold text-indigo-400">${req.from_dept} → ${req.to_dept}</span>
+                                <h3 class="text-sm font-bold text-slate-100 mt-0.5">${escapeHtml(req.subject)}</h3>
+                            </div>
+                            <span class="text-[11px] px-2 py-0.5 rounded border ${statusClass} shrink-0">${req.status || 'Açık'}</span>
+                        </div>
+
+                        <p class="text-xs text-slate-300 whitespace-pre-line">${escapeHtml(req.details)}</p>
+
+                        ${req.response_note ? `<div class="bg-slate-900/90 border border-slate-700/80 rounded-lg p-2.5 text-xs text-amber-200"><span class="font-semibold text-amber-400">Yanıt Notu:</span> ${escapeHtml(req.response_note)}</div>` : ''}
+
+                        <div class="flex justify-between items-center text-[11px] text-slate-400 border-t border-slate-700/60 pt-2">
+                            <div>
+                                <span>Açan: ${escapeHtml(req.requester_name)}</span>
+                                <span class="mx-1">•</span>
+                                <span class="${priorityClass}">Öncelik: ${req.priority || 'Normal'}</span>
+                                <span class="block text-slate-500 mt-0.5">${dateText}</span>
+                            </div>
+                            <div class="flex gap-1.5">
+                                ${requesterActions}
+                                <button onclick="openUpdateRequestModal(${req.id})" class="bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 px-2.5 py-1.5 rounded-lg text-xs font-medium transition">Durum / Yanıt</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        async function deleteDepartmentRequest(reqId) {
+            const req = departmentRequestsCache.find(r => String(r.id) === String(reqId));
+            if (!currentUser || !req || req.requester_username !== currentUser.username) {
+                alert('Yalnızca kendi talebinizi silebilirsiniz!');
+                return;
+            }
+
+            if (!confirm('Bu talebi silmek istediğinize emin misiniz?')) return;
+
+            const { data, error } = await supabaseClient
+                .from('department_requests')
+                .delete()
+                .eq('id', reqId)
+                .eq('requester_username', currentUser.username)
+                .select('id')
+                .maybeSingle();
+
+            if (error) {
+                alert('Talep silinirken bir hata oluştu!');
+                console.error(error);
+                return;
+            }
+            if (!data) {
+                alert('Talep silinemedi. Supabase department_requests tablosunda DELETE iznini (RLS) kontrol edin.');
+                return;
+            }
+
+            alert('Talep silindi.');
+            await loadDepartmentRequests();
+        }
+
+        function openUpdateRequestModal(reqId) {
+            const req = departmentRequestsCache.find(r => r.id === reqId);
+            if (!req) return;
+
+            document.getElementById('upd-req-id').value = req.id;
+            document.getElementById('upd-req-summary').innerText = `${req.from_dept} → ${req.to_dept} | ${req.subject}`;
+            document.getElementById('upd-req-status').value = req.status || 'Açık';
+            document.getElementById('upd-req-note').value = req.response_note || '';
+            document.getElementById('update-request-modal').classList.remove('hidden');
+        }
+
+        function closeUpdateRequestModal() {
+            document.getElementById('update-request-modal').classList.add('hidden');
+        }
+
+        async function submitRequestUpdate() {
+            const reqId = document.getElementById('upd-req-id').value;
+            const status = document.getElementById('upd-req-status').value;
+            const note = document.getElementById('upd-req-note').value.trim();
+
+            const { error } = await supabaseClient
+                .from('department_requests')
+                .update({
+                    status: status,
+                    response_note: note
+                })
+                .eq('id', reqId);
+
+            if (error) {
+                alert('Talep güncellenirken hata oluştu!');
+                console.error(error);
+                return;
+            }
+
+            closeUpdateRequestModal();
+            await loadDepartmentRequests();
         }
 
         async function openLogsModal() {
@@ -699,7 +1146,6 @@
         function resolveTargetCategoryForSearch(searchVal) {
             const compact = compactKey(searchVal);
 
-            // Ring ve Bobin Aramaları (K46 dahil)
             if (
                 searchVal.startsWith('ring') ||
                 searchVal.startsWith('bobin') ||
@@ -738,7 +1184,6 @@
                 return { cat: 'KLIMA', table: 'klima_kompresor_grup' };
             }
 
-            // İhzarat Model Kodları ve İsimleri (F5 dahil)
             if (
                 searchVal.includes('fitil') ||
                 compact.includes('fitil') ||
@@ -833,7 +1278,6 @@
             const fullHaystack = `${name} ${opNo} ${mNo} ${code} ${brand} ${model} ${combined} ${genName}`;
             const searchCompact = compactKey(searchVal);
 
-            // K46 (Ring K46) özel kuralı
             if (searchCompact === 'k46' || searchCompact.startsWith('k46')) {
                 const isBobinRow = fullHaystack.includes('bobin') || fullHaystack.includes('muratec') || fullHaystack.includes('qpro') || (!fullHaystack.includes('ring') && Number(machine.id) > 20);
                 const isRingRow = !isBobinRow && (
@@ -852,7 +1296,6 @@
                 return isRingRow;
             }
 
-            // F5 (Marzoli F5 / Fitil 7) özel kuralı
             if (searchCompact === 'f5' || searchCompact.startsWith('f5')) {
                 const isF5Fitil =
                     Number(machine.id) === 77 ||
@@ -870,7 +1313,6 @@
                 return isF5Fitil;
             }
 
-            // Model Kodu / Makine Tipi Özel Eşleşme Sözlüğü
             const modelKeyMap = {
                 'e32': ['servolab', 'e32'],
                 'e26': ['servolab', 'e26'],
@@ -895,7 +1337,6 @@
             const numbered = parseNumberedQuery(searchVal);
             const machineNum = getMachineDisplayNumber(machine, allMachines);
 
-            // Numaralı tekil arama (örn: RING-1, ring1, bobin-2, fitil-1, cer-3, tarak-1, penye-2)
             if (numbered) {
                 const { prefix, num, compact } = numbered;
 
@@ -944,13 +1385,11 @@
                 return compactHaystack.includes(compact);
             }
 
-            // ring -> Tüm Ring makineleri
             if (searchVal.startsWith('ring')) {
                 const isBobin = fullHaystack.includes('bobin') || fullHaystack.includes('muratec') || fullHaystack.includes('qpro') || Number(machine.id) > 20;
                 return (fullHaystack.includes('ring') || (Number(machine.id) <= 20 && activeTableName === 'machine_ringbobin')) && !isBobin;
             }
 
-            // bobin veya qpro -> Tüm Bobin makineleri
             if (searchVal.startsWith('bobin') || searchVal.startsWith('qpro')) {
                 const isRing = name.includes('ring') || genName.startsWith('ring');
                 return (fullHaystack.includes('bobin') || fullHaystack.includes('qpro') || fullHaystack.includes('muratec') || (Number(machine.id) > 20 && activeTableName === 'machine_ringbobin')) && !isRing;
@@ -959,24 +1398,20 @@
             const isFitil = fullHaystack.includes('fitil') || fullHaystack.includes('ft6') || fullHaystack.includes('marzol') || mNo.includes('198/228');
             const num = extractMachineNumber(opNo, combined, genName, mNo);
 
-            // fikse veya kazan -> fikse kazanı
             if (searchVal.startsWith('fikse') || searchVal.startsWith('kazan')) {
                 return isFikseMachine(machine) || fullHaystack.includes('fikse') || fullHaystack.includes('kazan');
             }
 
-            // paket -> paketleme makinesi
             if (searchVal.startsWith('paket') || searchVal.startsWith('pak')) {
                 return isPaketMachine(machine) || fullHaystack.includes('paket');
             }
 
-            // FT6D veya MARZOLI -> fitil-1 .. fitil-6
             if (searchVal === 'ft6d' || searchVal.startsWith('ft6') || searchVal.startsWith('marzol')) {
                 if (!isFitil) return false;
                 if (!Number.isNaN(num)) return num >= 1 && num <= 6;
                 return true;
             }
 
-            // Genel Esnek İçerme
             return fullHaystack.includes(searchVal) || compactHaystack.includes(searchCompact);
         }
 
@@ -1004,7 +1439,7 @@
             let compCounter = 0;
             let dryCounter = 0;
 
-            allowed.forEach((machine, index) => {
+            allowed.forEach((machine) => {
                 let displayName = '';
                 let displayCode = '';
                 let displayLoc = machine.location || machine.operation_no || 'İplik-6';
@@ -1023,9 +1458,6 @@
                     displayName = rawNo ? `${rawName}-${rawNo}` : rawName;
                     displayCode = machine.machine_no ? `Makine No: ${machine.machine_no}` : '';
                 } else if (machine._sourceTable === 'machine_compressors' || machine._sourceTable === 'machine_dryers') {
-                    let comps = allowed.filter(m => m._sourceTable === 'machine_compressors');
-                    let dries = allowed.filter(m => m._sourceTable === 'machine_dryers');
-
                     if (machine._sourceTable === 'machine_compressors') {
                         compCounter++;
                         displayName = `KOMPRESÖR-${compCounter}`;
@@ -1161,9 +1593,6 @@
                 baseName = machine.code || machine.name || machine.machine_name || '';
             }
 
-            if (normalize(baseName).startsWith('ipl6-')) {
-                return baseName.toUpperCase();
-            }
             return baseName.toUpperCase();
         }
 
@@ -1466,9 +1895,6 @@
                 baseName = machine.code || machine.name || machine.machine_name || '';
             }
 
-            if (normalize(baseName).startsWith('ipl6-')) {
-                return baseName.toUpperCase();
-            }
             return baseName.toUpperCase();
         }
 
@@ -1501,7 +1927,7 @@
             return `${localDateTime}:00${offsetSign}${offsetHours}:${offsetRemainder}`;
         }
 
-        openAddRecordModal = function() {
+        function openAddRecordModal() {
             const canSetRecordDate = currentUser && currentUser.role !== 'OPERATOR';
             document.getElementById('rec-date-field').classList.toggle('hidden', !canSetRecordDate);
             document.getElementById('rec-date').value = getLocalDateTimeInputValue();
@@ -1510,61 +1936,6 @@
 
         function closeAddRecordModal() {
             document.getElementById('record-modal').classList.add('hidden');
-        }
-
-        function openBulkModal() {
-            if (selectedMachineIds.size === 0) {
-                alert('Lütfen en az bir makine seçin!');
-                return;
-            }
-            document.getElementById('bulk-modal-info').innerText = `${selectedMachineIds.size} adet makineye ortak kayıt eklenecek.`;
-            document.getElementById('bulk-modal').classList.remove('hidden');
-        }
-
-        function closeBulkModal() {
-            document.getElementById('bulk-modal').classList.add('hidden');
-        }
-
-        async function submitBulkRecords() {
-            const type = document.getElementById('bulk-rec-type').value;
-            const desc = document.getElementById('bulk-rec-desc').value.trim();
-            const parts = document.getElementById('bulk-rec-parts').value.trim();
-
-            if (!desc) {
-                alert('Lütfen bir açıklama girin!');
-                return;
-            }
-
-            const recordDate = getTimestampWithLocalOffset(getLocalDateTimeInputValue());
-            let successCount = 0;
-
-            for (let mId of selectedMachineIds) {
-                let machine = allMachinesCache.find(m => m.id === mId);
-                if (!machine) continue;
-
-                let mCode = getMachineGeneratedName(machine, allMachinesCache);
-                const fullDesc = `[IPL6-${mCode}] ${desc}`;
-                const fullParts = parts ? `${mCode} | ${parts}` : '-';
-
-                const { error } = await supabaseClient.from('maintenance_records').insert([{
-                    machine_id: machine.id > 9000 ? null : machine.id,
-                    record_type: type,
-                    description: fullDesc,
-                    parts_replaced: fullParts,
-                    technician: currentUser.name,
-                    record_date: recordDate
-                }]);
-
-                if (!error) successCount++;
-            }
-
-            alert(`${successCount} makineye kayıt başarıyla eklendi!`);
-            closeBulkModal();
-            document.getElementById('bulk-rec-desc').value = '';
-            document.getElementById('bulk-rec-parts').value = '';
-            selectedMachineIds.clear();
-            document.getElementById('bulk-action-bar').classList.add('hidden');
-            loadMachines();
         }
 
         async function submitNewRecord() {
