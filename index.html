@@ -47,8 +47,7 @@
                 <div class="space-y-3">
                     <div>
                         <label class="block text-xs text-slate-400 mb-1">Kullanıcı Adı</label>
-                        <input type="text" id="username-input" list="user-suggestions" oninput="filterUserSuggestions()" placeholder="örn: a_aslan, g_goktas" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-sky-500">
-                        <datalist id="user-suggestions"></datalist>
+                        <input type="text" id="username-input" autocomplete="off" placeholder="Kullanıcı adı girin" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-sky-500">
                     </div>
                     <button onclick="handleLogin()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-3 rounded-lg transition shadow">Giriş Yap</button>
                 </div>
@@ -306,24 +305,6 @@
                 .replace(/ç/g, 'c');
         }
 
-        function filterUserSuggestions() {
-            const rawVal = document.getElementById('username-input').value.trim();
-            const datalistEl = document.getElementById('user-suggestions');
-            datalistEl.innerHTML = '';
-
-            if(!rawVal) return;
-
-            const normVal = normalize(rawVal);
-            const filteredUsers = USERS.filter(u => normalize(u.username).includes(normVal));
-
-            filteredUsers.forEach(u => {
-                const opt = document.createElement('option');
-                opt.value = u.username;
-                opt.innerText = `${u.name} (${u.username})`;
-                datalistEl.appendChild(opt);
-            });
-        }
-
         async function handleLogin() {
             const rawInput = document.getElementById('username-input').value.trim();
             const normInput = normalize(rawInput);
@@ -395,7 +376,6 @@
                 localStorage.removeItem('iplik6_current_user');
                 
                 document.getElementById('username-input').value = '';
-                document.getElementById('user-suggestions').innerHTML = '';
                 document.getElementById('detail-section').classList.add('hidden');
                 document.getElementById('dashboard-section').classList.add('hidden');
                 document.getElementById('login-section').classList.remove('hidden');
@@ -866,7 +846,6 @@
                 const matchTag = descNorm.match(/\[(.*?)\]/);
                 if (matchTag) {
                     let tagContent = normalize(matchTag[1]).replace(/[-\s]/g, '');
-                    // Birebir eşitlik kontrolü (örn: bobin13 ile bobin1 veya bobin13 ile bobin13)
                     return tagContent === normMCode || tagContent === normalize("ipl6" + mCode).replace(/[-\s]/g, '');
                 }
                 return false;
@@ -902,7 +881,7 @@
                 recListEl.innerHTML += `
                     <div class="${cardBgClass} p-4 rounded-xl border space-y-1 shadow relative">
                         <div class="flex justify-between items-center text-xs">
-                            <span class="${isMyRecord ? 'text-amber-300 font-bold' : 'text-sky-400 font-semibold'}">${rec.record_type || 'Bakım'} ${isMyRecord ? '⭐ (Sizin Kaydınız)' : ''}</span>
+                            <span class="${isMyRecord ? 'text-amber-300 font-bold' : 'text-amber-400 font-semibold'}">${rec.record_type || 'Bakım'} ${isMyRecord ? '⭐ (Sizin Kaydınız)' : ''}</span>
                             <div class="flex items-center gap-2">
                                 <span class="text-slate-400">${rec.record_date || ''}</span>
                                 ${actionBtnsHtml}
@@ -1035,7 +1014,6 @@
                 let normCode = normalize(m.code || '').replace(/[-\s]/g, '');
                 let normName = normalize(m.machine_name || m.name || '').replace(/[-\s]/g, '');
 
-                // Birebir tam eşleşme kontrolü (Benzerlik yerine tam eşitlik)
                 if (normGenName === normTag || normCode === normTag || normName === normTag) {
                     found = m;
                     break;
