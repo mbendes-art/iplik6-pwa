@@ -1103,7 +1103,7 @@
                 return;
             }
 
-            const todayStr = new Date().toISOString().split('T')[0];
+            const recordDate = getTimestampWithLocalOffset(getLocalDateTimeInputValue());
             let successCount = 0;
 
             for (let mId of selectedMachineIds) {
@@ -1120,7 +1120,7 @@
                     description: fullDesc,
                     parts_replaced: fullParts,
                     technician: currentUser.name,
-                    record_date: todayStr
+                    record_date: recordDate
                 }]);
 
                 if (!error) successCount++;
@@ -1535,7 +1535,7 @@
                 return;
             }
 
-            const todayStr = new Date().toISOString().split('T')[0];
+            const recordDate = getTimestampWithLocalOffset(getLocalDateTimeInputValue());
             let successCount = 0;
 
             for (let mId of selectedMachineIds) {
@@ -1552,7 +1552,7 @@
                     description: fullDesc,
                     parts_replaced: fullParts,
                     technician: currentUser.name,
-                    record_date: todayStr
+                    record_date: recordDate
                 }]);
 
                 if (!error) successCount++;
