@@ -66,7 +66,7 @@
             </div>
             
             <!-- Arama Kutusu -->
-            <input type="text" id="search-input" oninput="filterMachineList()" placeholder="Makine ara (örn: RING-1, bobin-3, fitil-1, F5, fikse, paket)..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
+            <input type="text" id="search-input" oninput="filterMachineList()" placeholder="Makine ara (örn: K46, RING-1, F5, E32, E35, A11)..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
 
             <!-- Hızlı Kategori Filtre Butonları -->
             <div id="category-pills" class="grid grid-cols-2 gap-2 text-xs">
@@ -138,6 +138,10 @@
                     <option value="Arıza Onarımı">Arıza Onarımı</option>
                 </select>
             </div>
+            <div id="rec-date-field" class="hidden">
+                <label for="rec-date" class="block text-xs text-slate-400 mb-1">Arıza Tarihi ve Saati</label>
+                <input type="datetime-local" id="rec-date" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
+            </div>
             <div>
                 <label class="block text-xs text-slate-400 mb-1">Açıklama</label>
                 <textarea id="rec-desc" rows="3" placeholder="Yapılan işlemi veya arızayı yazın..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500"></textarea>
@@ -166,6 +170,10 @@
                     <option value="Mekanik Müdahale">Mekanik Müdahale</option>
                     <option value="Arıza Onarımı">Arıza Onarımı</option>
                 </select>
+            </div>
+            <div>
+                <label for="edit-rec-date" class="block text-xs text-slate-400 mb-1">Kayıt Tarihi ve Saati</label>
+                <input type="datetime-local" id="edit-rec-date" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
             </div>
             <div>
                 <label class="block text-xs text-slate-400 mb-1">Açıklama</label>
@@ -511,7 +519,21 @@
             });
         }
 
+        function canAccessMachineTable(tableName) {
+            if (!currentUser) return false;
+
+            if (currentUser.role === 'IHZARAT') return tableName === 'machine_ihzarat';
+            if (currentUser.role === 'RING_BOBIN') return tableName === 'machine_ringbobin';
+            if (currentUser.role === 'KLIMA') {
+                return tableName === 'klima_kompresor_grup' || tableName === 'paketleme_fikse_grup';
+            }
+
+            return true;
+        }
+
         async function setCategoryFilter(cat, tableName, preserveSearch = false) {
+            if (tableName !== 'tum_arizalar' && !canAccessMachineTable(tableName)) return;
+
             currentCategoryFilter = cat;
             activeTableName = tableName;
             selectedMachineIds.clear();
@@ -577,7 +599,7 @@
                             <div class="flex justify-between items-center text-xs">
                                 <span class="${isMyRecord ? 'text-amber-300 font-bold' : 'text-amber-400 font-semibold'}">${rec.record_type || 'Arıza/Bakım'} ${isMyRecord ? '⭐ (Sizin Kaydınız)' : ''}</span>
                                 <div class="flex items-center gap-2">
-                                    <span class="text-slate-400">${rec.record_date || ''}</span>
+                                    <span class="text-slate-400">${formatRecordDate(rec.record_date)}</span>
                                     ${actionBtnsHtml}
                                 </div>
                             </div>
@@ -669,20 +691,23 @@
             const mNo = normalize(String(m.machine_no || ''));
             const code = normalize(String(m.code || ''));
             const brand = normalize(String(m.brand || ''));
+            const model = normalize(String(m.model || ''));
             const combined = `${name}-${opNo}`.trim();
-            return { name, opNo, mNo, code, brand, combined };
+            return { name, opNo, mNo, code, brand, model, combined };
         }
 
         function resolveTargetCategoryForSearch(searchVal) {
             const compact = compactKey(searchVal);
 
+            // Ring ve Bobin Aramaları (K46 dahil)
             if (
                 searchVal.startsWith('ring') ||
                 searchVal.startsWith('bobin') ||
                 searchVal.startsWith('k46') ||
                 searchVal.startsWith('qpro') ||
                 compact.startsWith('ring') ||
-                compact.startsWith('bobin')
+                compact.startsWith('bobin') ||
+                compact.startsWith('k46')
             ) {
                 return { cat: 'RING_BOBIN', table: 'machine_ringbobin' };
             }
@@ -713,29 +738,35 @@
                 return { cat: 'KLIMA', table: 'klima_kompresor_grup' };
             }
 
+            // İhzarat Model Kodları ve İsimleri (F5 dahil)
             if (
                 searchVal.includes('fitil') ||
-                searchVal.startsWith('ft6') ||
-                searchVal.startsWith('marzol') ||
-                searchVal.startsWith('f5') ||
-                searchVal.startsWith('e32') ||
-                searchVal.startsWith('e35') ||
-                searchVal.startsWith('e26') ||
-                searchVal.startsWith('a11') ||
-                searchVal.startsWith('b12') ||
-                searchVal.startsWith('b72') ||
-                searchVal.startsWith('a79') ||
-                searchVal.startsWith('a21') ||
-                searchVal.startsWith('e80') ||
-                searchVal.startsWith('c70') ||
-                searchVal.startsWith('d45') ||
-                searchVal.startsWith('cer') ||
-                searchVal.startsWith('tarak') ||
-                searchVal.startsWith('penye') ||
                 compact.includes('fitil') ||
+                compact.startsWith('ft6') ||
+                compact.startsWith('marzol') ||
+                compact.startsWith('f5') ||
+                compact.startsWith('e32') ||
+                compact.startsWith('e35') ||
+                compact.startsWith('e26') ||
+                compact.startsWith('a11') ||
+                compact.startsWith('b12') ||
+                compact.startsWith('b72') ||
+                compact.startsWith('a79') ||
+                compact.startsWith('a21') ||
+                compact.startsWith('e80') ||
+                compact.startsWith('c70') ||
+                compact.startsWith('d45') ||
                 compact.startsWith('cer') ||
                 compact.startsWith('tarak') ||
-                compact.startsWith('penye')
+                compact.startsWith('penye') ||
+                compact.startsWith('servolab') ||
+                compact.startsWith('omeg') ||
+                compact.startsWith('unifloc') ||
+                compact.startsWith('uniclean') ||
+                compact.startsWith('unim') ||
+                compact.startsWith('unistore') ||
+                compact.startsWith('b25') ||
+                compact.startsWith('kondenser')
             ) {
                 return { cat: 'IHZARAT', table: 'machine_ihzarat' };
             }
@@ -753,7 +784,7 @@
             }
 
             const target = resolveTargetCategoryForSearch(searchVal);
-            if (target && (activeTableName !== target.table || currentCategoryFilter !== target.cat)) {
+            if (target && canAccessMachineTable(target.table) && (activeTableName !== target.table || currentCategoryFilter !== target.cat)) {
                 await setCategoryFilter(target.cat, target.table, true);
                 return;
             }
@@ -796,10 +827,71 @@
         }
 
         function matchesCustomSearchRule(machine, searchVal, allMachines) {
-            const { name, opNo, mNo, code, brand, combined } = getIhzaratNormalizedText(machine);
+            const { name, opNo, mNo, code, brand, model, combined } = getIhzaratNormalizedText(machine);
             const genName = normalize(getMachineGeneratedName(machine, allMachines));
-            const compactHaystack = compactKey(`${name} ${opNo} ${mNo} ${code} ${brand} ${combined} ${genName}`);
-            const fullHaystack = `${name} ${opNo} ${mNo} ${code} ${brand} ${combined} ${genName}`;
+            const compactHaystack = compactKey(`${name} ${opNo} ${mNo} ${code} ${brand} ${model} ${combined} ${genName}`);
+            const fullHaystack = `${name} ${opNo} ${mNo} ${code} ${brand} ${model} ${combined} ${genName}`;
+            const searchCompact = compactKey(searchVal);
+
+            // K46 (Ring K46) özel kuralı
+            if (searchCompact === 'k46' || searchCompact.startsWith('k46')) {
+                const isBobinRow = fullHaystack.includes('bobin') || fullHaystack.includes('muratec') || fullHaystack.includes('qpro') || (!fullHaystack.includes('ring') && Number(machine.id) > 20);
+                const isRingRow = !isBobinRow && (
+                    fullHaystack.includes('ring') ||
+                    fullHaystack.includes('k46') ||
+                    genName.startsWith('ring') ||
+                    machine._sourceTable === 'machine_ringbobin' ||
+                    activeTableName === 'machine_ringbobin'
+                );
+                if (searchCompact === 'k46') return isRingRow;
+
+                const numbered = parseNumberedQuery(searchVal);
+                if (numbered) {
+                    return isRingRow && getMachineDisplayNumber(machine, allMachines) === numbered.num;
+                }
+                return isRingRow;
+            }
+
+            // F5 (Marzoli F5 / Fitil 7) özel kuralı
+            if (searchCompact === 'f5' || searchCompact.startsWith('f5')) {
+                const isF5Fitil =
+                    Number(machine.id) === 77 ||
+                    opNo === '7' ||
+                    mNo.includes('198/228') ||
+                    combined.endsWith('-7') ||
+                    genName.endsWith('-7') ||
+                    fullHaystack.includes('f5') ||
+                    fullHaystack.includes('fitil-7') ||
+                    fullHaystack.includes('fitil7');
+                const numbered = parseNumberedQuery(searchVal);
+                if (numbered && numbered.num !== 7 && numbered.num !== 5) {
+                    return false;
+                }
+                return isF5Fitil;
+            }
+
+            // Model Kodu / Makine Tipi Özel Eşleşme Sözlüğü
+            const modelKeyMap = {
+                'e32': ['servolab', 'e32'],
+                'e26': ['servolab', 'e26'],
+                'e35': ['omeg', 'e35'],
+                'a11': ['unifloc', 'a11'],
+                'b12': ['uniclean', 'b12'],
+                'b72': ['unim', 'b72'],
+                'a79': ['unistore', 'a79'],
+                'a21': ['kondenser', 'a21'],
+                'e80': ['penye', 'e80'],
+                'c70': ['tarak', 'c70'],
+                'd45': ['cer', 'd45'],
+                'b25': ['telef', 'b25'],
+            };
+
+            for (const [modelKey, keywords] of Object.entries(modelKeyMap)) {
+                if (searchCompact === modelKey || searchCompact.startsWith(modelKey)) {
+                    return keywords.some(kw => compactHaystack.includes(kw));
+                }
+            }
+
             const numbered = parseNumberedQuery(searchVal);
             const machineNum = getMachineDisplayNumber(machine, allMachines);
 
@@ -811,7 +903,7 @@
                     return true;
                 }
 
-                if (prefix === 'ring' || prefix === 'k46') {
+                if (prefix === 'ring') {
                     const isRing = (fullHaystack.includes('ring') || genName.startsWith('ring') || (Number(machine.id) <= 20 && activeTableName === 'machine_ringbobin')) && !fullHaystack.includes('bobin');
                     return isRing && machineNum === num;
                 }
@@ -852,10 +944,10 @@
                 return compactHaystack.includes(compact);
             }
 
-            // ring veya k46 -> Tüm Ring makineleri
-            if (searchVal.startsWith('ring') || searchVal.startsWith('k46')) {
+            // ring -> Tüm Ring makineleri
+            if (searchVal.startsWith('ring')) {
                 const isBobin = fullHaystack.includes('bobin') || fullHaystack.includes('muratec') || fullHaystack.includes('qpro') || Number(machine.id) > 20;
-                return (fullHaystack.includes('ring') || fullHaystack.includes('k46') || (Number(machine.id) <= 20 && activeTableName === 'machine_ringbobin')) && !isBobin;
+                return (fullHaystack.includes('ring') || (Number(machine.id) <= 20 && activeTableName === 'machine_ringbobin')) && !isBobin;
             }
 
             // bobin veya qpro -> Tüm Bobin makineleri
@@ -884,65 +976,8 @@
                 return true;
             }
 
-            // F5 -> Fitil-7 (id: 77, FİTİL, operation_no: 7, 198/228)
-            if (searchVal.startsWith('f5')) {
-                if (Number(machine.id) === 77 || opNo === '7' || mNo.includes('198/228') || num === 7 || combined.endsWith('-7') || genName.endsWith('-7')) {
-                    return true;
-                }
-                return isFitil && fullHaystack.includes('f5');
-            }
-
-            // E32 -> SERVOLAB
-            if (searchVal.startsWith('e32')) {
-                return fullHaystack.includes('servolab') || fullHaystack.includes('e32');
-            }
-
-            // E35 -> OMEGALLAP
-            if (searchVal.startsWith('e35')) {
-                return fullHaystack.includes('omeg') || fullHaystack.includes('e35');
-            }
-
-            // E26 -> SERVOLAB
-            if (searchVal.startsWith('e26')) {
-                return fullHaystack.includes('servolab') || fullHaystack.includes('e26');
-            }
-
-            // A11 -> UNIFLOC
-            if (searchVal.startsWith('a11')) {
-                return fullHaystack.includes('unifloc') || fullHaystack.includes('a11');
-            }
-
-            // B12 -> UNICLEAN
-            if (searchVal.startsWith('b12')) {
-                return fullHaystack.includes('uniclean') || fullHaystack.includes('b12');
-            }
-
-            // B72 -> UNIMIX
-            if (searchVal.startsWith('b72')) {
-                return fullHaystack.includes('unim') || fullHaystack.includes('b72');
-            }
-
-            // A79 -> UNISTORE
-            if (searchVal.startsWith('a79')) {
-                return fullHaystack.includes('unistore') || fullHaystack.includes('a79');
-            }
-
-            // A21 -> KONDENSER
-            if (searchVal.startsWith('a21')) {
-                return fullHaystack.includes('kondenser') || fullHaystack.includes('a21');
-            }
-
-            // E80 / C70 / D45
-            const modelAliasMap = {
-                'e80': ['penye', 'e80'],
-                'c70': ['tarak', 'c70'],
-                'd45': ['cer', 'd45']
-            };
-
-            const matchedKey = Object.keys(modelAliasMap).find(key => searchVal === key || searchVal.startsWith(key));
-            const targetTerms = matchedKey ? modelAliasMap[matchedKey] : [searchVal];
-
-            return targetTerms.some(term => fullHaystack.includes(term) || compactHaystack.includes(compactKey(term)));
+            // Genel Esnek İçerme
+            return fullHaystack.includes(searchVal) || compactHaystack.includes(searchCompact);
         }
 
         function renderMachines(machines) {
@@ -953,6 +988,9 @@
 
             if (searchVal) {
                 allowed = allowed.filter(m => matchesCustomSearchRule(m, searchVal, machines));
+                if (compactKey(searchVal) === 'k46') {
+                    allowed.sort(sortMachinesCustom);
+                }
             } else if (activeTableName === 'machine_ringbobin') {
                 allowed.sort(sortMachinesCustom);
             }
@@ -1214,7 +1252,7 @@
                         <div class="flex justify-between items-center text-xs">
                             <span class="${isMyRecord ? 'text-amber-300 font-bold' : 'text-amber-400 font-semibold'}">${rec.record_type || 'Bakım'} ${isMyRecord ? '⭐ (Sizin Kaydınız)' : ''}</span>
                             <div class="flex items-center gap-2">
-                                <span class="text-slate-400">${rec.record_date || ''}</span>
+                                <span class="text-slate-400">${formatRecordDate(rec.record_date)}</span>
                                 ${actionBtnsHtml}
                             </div>
                         </div>
@@ -1231,6 +1269,9 @@
 
             document.getElementById('edit-rec-id').value = rec.id;
             document.getElementById('edit-rec-type').value = rec.record_type || 'Periyodik Bakım';
+            const recordDateInput = document.getElementById('edit-rec-date');
+            recordDateInput.value = getRecordDateTimeInputValue(rec.record_date);
+            recordDateInput.dataset.originalValue = recordDateInput.value;
             document.getElementById('edit-rec-desc').value = rec.description || '';
             document.getElementById('edit-rec-parts').value = rec.parts_replaced || '';
 
@@ -1246,19 +1287,30 @@
             const type = document.getElementById('edit-rec-type').value;
             const desc = document.getElementById('edit-rec-desc').value.trim();
             const parts = document.getElementById('edit-rec-parts').value.trim();
+            const recordDateInput = document.getElementById('edit-rec-date');
 
             if (!desc) {
                 alert('Lütfen bir açıklama girin!');
                 return;
             }
 
+            const updates = {
+                record_type: type,
+                description: desc,
+                parts_replaced: parts || '-'
+            };
+            if (recordDateInput.value !== recordDateInput.dataset.originalValue) {
+                const recordDate = getTimestampWithLocalOffset(recordDateInput.value);
+                if (!recordDate) {
+                    alert('Lütfen geçerli bir tarih ve saat seçin!');
+                    return;
+                }
+                updates.record_date = recordDate;
+            }
+
             const { error } = await supabaseClient
                 .from('maintenance_records')
-                .update({
-                    record_type: type,
-                    description: desc,
-                    parts_replaced: parts || '-'
-                })
+                .update(updates)
                 .eq('id', rId);
 
             if (error) {
@@ -1309,6 +1361,22 @@
 
         function escapeHtml(text) {
             return (text || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function formatRecordDate(recordDate) {
+            if (!recordDate) return '';
+            const value = String(recordDate);
+            if (!/[T ]\d{2}:\d{2}/.test(value)) return value;
+
+            const date = new Date(value.replace(' ', 'T'));
+            if (Number.isNaN(date.getTime())) return value;
+            return date.toLocaleString('tr-TR', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
         }
 
         async function openMachineFromRecord(desc) {
@@ -1404,7 +1472,39 @@
             return baseName.toUpperCase();
         }
 
+        function getLocalDateTimeInputValue(date = new Date()) {
+            const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+            return localDate.toISOString().slice(0, 16);
+        }
+
+        function getRecordDateTimeInputValue(recordDate) {
+            if (!recordDate) return '';
+            const value = String(recordDate);
+            if (!/[T ]\d{2}:\d{2}/.test(value)) return `${value.slice(0, 10)}T00:00`;
+
+            const date = new Date(value.replace(' ', 'T'));
+            if (Number.isNaN(date.getTime())) return '';
+            const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+            return localDate.toISOString().slice(0, 16);
+        }
+
+        function getTimestampWithLocalOffset(localDateTime) {
+            if (!localDateTime) return '';
+            const date = new Date(localDateTime);
+            if (Number.isNaN(date.getTime())) return '';
+
+            const offsetMinutes = -date.getTimezoneOffset();
+            const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+            const absoluteOffset = Math.abs(offsetMinutes);
+            const offsetHours = String(Math.floor(absoluteOffset / 60)).padStart(2, '0');
+            const offsetRemainder = String(absoluteOffset % 60).padStart(2, '0');
+            return `${localDateTime}:00${offsetSign}${offsetHours}:${offsetRemainder}`;
+        }
+
         openAddRecordModal = function() {
+            const canSetRecordDate = currentUser && currentUser.role !== 'OPERATOR';
+            document.getElementById('rec-date-field').classList.toggle('hidden', !canSetRecordDate);
+            document.getElementById('rec-date').value = getLocalDateTimeInputValue();
             document.getElementById('record-modal').classList.remove('hidden');
         }
 
@@ -1471,9 +1571,18 @@
             const type = document.getElementById('rec-type').value;
             const desc = document.getElementById('rec-desc').value.trim();
             const parts = document.getElementById('rec-parts').value.trim();
+            const canSetRecordDate = currentUser && currentUser.role !== 'OPERATOR';
+            const selectedDateTime = canSetRecordDate
+                ? document.getElementById('rec-date').value
+                : getLocalDateTimeInputValue();
+            const recordDate = getTimestampWithLocalOffset(selectedDateTime);
             
             if(!desc) {
                 alert('Lütfen bir açıklama girin!');
+                return;
+            }
+            if (!recordDate) {
+                alert('Lütfen geçerli bir tarih ve saat seçin!');
                 return;
             }
 
@@ -1481,7 +1590,6 @@
 
             const fullDesc = `[IPL6-${mCode}] ${desc}`;
             const fullParts = parts ? `${mCode} | ${parts}` : '-';
-            const todayStr = new Date().toISOString().split('T')[0];
 
             const { error } = await supabaseClient.from('maintenance_records').insert([{
                 machine_id: selectedMachine.id > 9000 ? null : selectedMachine.id,
@@ -1489,7 +1597,7 @@
                 description: fullDesc,
                 parts_replaced: fullParts,
                 technician: currentUser.name,
-                record_date: todayStr
+                record_date: recordDate
             }]);
 
             if(error) {
