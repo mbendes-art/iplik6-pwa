@@ -66,13 +66,13 @@
             </div>
             
             <!-- Arama Kutusu -->
-            <input type="text" id="search-input" oninput="filterMachineList()" placeholder="Makine ara (örn: tarak, bobin, ring)..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
+            <input type="text" id="search-input" oninput="filterMachineList()" placeholder="Makine ara (örn: RING-1, bobin-3, fitil-1, F5, fikse, paket)..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
 
             <!-- Hızlı Kategori Filtre Butonları -->
             <div id="category-pills" class="grid grid-cols-2 gap-2 text-xs">
                 <button onclick="setCategoryFilter('RING_BOBIN', 'machine_ringbobin')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center">Ring/Bobin</button>
                 <button onclick="setCategoryFilter('IHZARAT', 'machine_ihzarat')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">İhzarat</button>
-                <button onclick="setCategoryFilter('PAKETLEME', 'machines_paketleme')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">Paketleme</button>
+                <button onclick="setCategoryFilter('PAKETLEME_FIKSE', 'paketleme_fikse_grup')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">Paketleme/Fikse</button>
                 <button onclick="setCategoryFilter('KLIMA', 'klima_kompresor_grup')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">Klima/Kompresör</button>
             </div>
 
@@ -218,12 +218,12 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         const USERS = [
-            { username: "mbendes", name: "M. Mendes (Yönetici)", role: "ALL_FACTORY" },
-            { username: "cetinkaya", name: "Çetinkaya (Yönetici)", role: "ALL_FACTORY" },
-            { username: "m_altuntas", name: "Mustafa Altuntaş", role: "KLIMA" },
-            { username: "r_sahin", name: "R. Şahin", role: "ALL_FACTORY" },
-            { username: "n_erturk", name: "N. Ertürk", role: "ALL_FACTORY" },
-            { username: "g_albayrak", name: "G. Albayrak", role: "ALL_FACTORY" },
+            { username: "mbendes", name: "M. Mendes (Yönetici)", role: "ALL_FACTORY", machines: ["FIKSE_KAZANI"] },
+            { username: "cetinkaya", name: "Çetinkaya (Yönetici)", role: "ALL_FACTORY", machines: ["FIKSE_KAZANI"] },
+            { username: "m_altuntas", name: "Mustafa Altuntaş", role: "KLIMA", machines: ["FIKSE_KAZANI"] },
+            { username: "r_sahin", name: "R. Şahin", role: "ALL_FACTORY", machines: ["FIKSE_KAZANI"] },
+            { username: "n_erturk", name: "N. Ertürk", role: "ALL_FACTORY", machines: ["FIKSE_KAZANI"] },
+            { username: "g_albayrak", name: "G. Albayrak", role: "ALL_FACTORY", machines: ["FIKSE_KAZANI"] },
             { username: "g_goktas", name: "G. Göktaş", role: "IHZARAT" },
             { username: "a_gultekin", name: "A. Gültekin", role: "IHZARAT" },
             { username: "a_ozturk", name: "A. Öztürk", role: "IHZARAT" },
@@ -236,6 +236,8 @@
             { username: "e_candan", name: "E. Candan", role: "RING_BOBIN" },
             { username: "l_yasar", name: "L. Yaşar", role: "RING_BOBIN" }
         ];
+
+        const FIKSE_KAZANI_USERS = ["m_altuntas", "r_sahin", "n_erturk", "g_albayrak"];
 
         let currentUser = null;
         let allMachinesCache = [];
@@ -295,14 +297,41 @@
         });
 
         function normalize(str) {
-            return (str || "").trim().toLowerCase()
-                .replace(/ı/g, 'i')
+            return (str || "")
+                .toString()
+                .trim()
+                .replace(/\u0307/g, '')
                 .replace(/İ/g, 'i')
+                .replace(/I/g, 'i')
+                .replace(/ı/g, 'i')
+                .replace(/Ğ/g, 'g')
                 .replace(/ğ/g, 'g')
+                .replace(/Ü/g, 'u')
                 .replace(/ü/g, 'u')
+                .replace(/Ş/g, 's')
                 .replace(/ş/g, 's')
+                .replace(/Ö/g, 'o')
                 .replace(/ö/g, 'o')
-                .replace(/ç/g, 'c');
+                .replace(/Ç/g, 'c')
+                .replace(/ç/g, 'c')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase();
+        }
+
+        function compactKey(str) {
+            return normalize(str).replace(/[\s\-_/.]+/g, '');
+        }
+
+        function isFikseMachine(machine) {
+            const txt = normalize(`${machine.machine_name || machine.name || ''} ${machine.code || ''} ${machine.machine_no || ''} ${machine.location || ''}`);
+            return txt.includes('fikse') || txt.includes('kazan');
+        }
+
+        function isPaketMachine(machine) {
+            const c = normalize(machine.code || '');
+            const n = normalize(machine.name || machine.machine_name || '');
+            return c.includes('paket') || n.includes('paket') || c.includes('pak') || n.includes('pak');
         }
 
         async function handleLogin() {
@@ -454,45 +483,48 @@
                 activeTableName = "klima_kompresor_grup";
                 currentCategoryFilter = "KLIMA";
                 pillsEl.innerHTML = `
-                    <button onclick="setCategoryFilter('KLIMA', 'klima_kompresor_grup')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2">Klima/Kompresör</button>
+                    <button onclick="setCategoryFilter('KLIMA', 'klima_kompresor_grup')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center">Klima/Kompresör</button>
+                    <button onclick="setCategoryFilter('PAKETLEME_FIKSE', 'paketleme_fikse_grup')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">Paketleme/Fikse</button>
                 `;
             } else {
                 pillsEl.innerHTML = `
                     <button onclick="setCategoryFilter('RING_BOBIN', 'machine_ringbobin')" class="cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center">Ring/Bobin</button>
                     <button onclick="setCategoryFilter('IHZARAT', 'machine_ihzarat')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">İhzarat</button>
-                    <button onclick="setCategoryFilter('PAKETLEME', 'machines_paketleme')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">Paketleme</button>
+                    <button onclick="setCategoryFilter('PAKETLEME_FIKSE', 'paketleme_fikse_grup')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">Paketleme/Fikse</button>
                     <button onclick="setCategoryFilter('KLIMA', 'klima_kompresor_grup')" class="cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center">Klima/Kompresör</button>
                 `;
             }
         }
 
-        async function setCategoryFilter(cat, tableName) {
+        function updateCategoryButtonStyles(cat) {
+            document.querySelectorAll('#category-pills button').forEach(btn => {
+                const btnText = btn.innerText.trim();
+                const isSelected = normalize(btnText).includes(normalize(cat)) || 
+                   (cat === 'RING_BOBIN' && normalize(btnText).includes('ring')) || 
+                   (cat === 'IHZARAT' && normalize(btnText).includes('ihzarat')) || 
+                   (cat === 'PAKETLEME_FIKSE' && (normalize(btnText).includes('paketleme') || normalize(btnText).includes('fikse'))) || 
+                   (cat === 'KLIMA' && normalize(btnText).includes('klima'));
+
+                btn.className = btn.classList.contains('col-span-2') 
+                    ? `cat-btn ${isSelected ? 'bg-sky-600 text-white' : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700'} px-3 py-2 rounded-lg font-medium transition text-center col-span-2`
+                    : `cat-btn ${isSelected ? 'bg-sky-600 text-white' : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700'} px-3 py-2 rounded-lg font-medium transition text-center`;
+            });
+        }
+
+        async function setCategoryFilter(cat, tableName, preserveSearch = false) {
             currentCategoryFilter = cat;
             activeTableName = tableName;
             selectedMachineIds.clear();
             document.getElementById('bulk-action-bar').classList.add('hidden');
+            if (!preserveSearch) {
+                document.getElementById('search-input').value = '';
+            }
             
-            document.querySelectorAll('#category-pills button').forEach(btn => {
-                const btnText = btn.innerText.trim();
-                if(normalize(btnText).includes(normalize(cat)) || 
-                   (cat === 'RING_BOBIN' && btnText.includes('Ring')) || 
-                   (cat === 'IHZARAT' && btnText.includes('İhzarat')) ||
-                   (cat === 'PAKETLEME' && btnText.includes('Paketleme')) ||
-                   (cat === 'KLIMA' && btnText.includes('Klima'))) {
-                    btn.className = btn.classList.contains('col-span-2') 
-                        ? "cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center col-span-2"
-                        : "cat-btn bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-center";
-                } else {
-                    btn.className = btn.classList.contains('col-span-2')
-                        ? "cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center col-span-2"
-                        : "cat-btn bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg font-medium transition text-center";
-                }
-            });
-
-            await loadMachines();
+            updateCategoryButtonStyles(cat);
+            await loadMachines(preserveSearch);
         }
 
-        async function loadMachines() {
+        async function loadMachines(preserveSearch = false) {
             const listEl = document.getElementById('machine-list');
             listEl.innerHTML = '<p class="text-center text-slate-400 py-4">Yükleniyor...</p>';
 
@@ -557,7 +589,34 @@
                 return;
             }
 
-            if (activeTableName === 'klima_kompresor_grup') {
+            if (activeTableName === 'paketleme_fikse_grup') {
+                const { data: mainData } = await supabaseClient.from('machines').select('*').order('id', { ascending: true });
+                const mains = mainData || [];
+
+                const paketlemeList = mains
+                    .filter(m => isPaketMachine(m) && !isFikseMachine(m))
+                    .map(m => ({ ...m, _sourceTable: 'machines', _brand: m.brand || 'Paketleme', _isFikse: false }));
+
+                const fikseList = mains
+                    .filter(m => isFikseMachine(m))
+                    .map(m => ({ ...m, _sourceTable: 'machines', _brand: m.brand || 'Fikse Kazan', _isFikse: true }));
+
+                if (fikseList.length === 0) {
+                    fikseList.push({
+                        id: 9981,
+                        machine_name: 'FİKSE KAZANI',
+                        name: 'FİKSE KAZANI',
+                        code: 'FİKSE KAZANI',
+                        location: 'İplik-6',
+                        brand: 'Fikse Kazan',
+                        _sourceTable: 'machines',
+                        _brand: 'Fikse Kazan',
+                        _isFikse: true
+                    });
+                }
+
+                allMachinesCache = [...paketlemeList, ...fikseList];
+            } else if (activeTableName === 'klima_kompresor_grup') {
                 const [compRes, dryRes, mainRes] = await Promise.all([
                     supabaseClient.from('machine_compressors').select('*'),
                     supabaseClient.from('machine_dryers').select('*'),
@@ -573,9 +632,12 @@
 
                 let klimasAndPnms = mains.filter(m => {
                     const txt = normalize(`${m.machine_name || m.name || ''} ${m.machine_no || m.code || ''} ${m.location || ''}`);
-                    return txt.includes('klm') || txt.includes('klima') || txt.includes('pnm') || txt.includes('pnömofil') || txt.includes('pnomofil');
+                    return txt.includes('klm') || txt.includes('klima') || txt.includes('pnm') || txt.includes('pnömofil') || txt.includes('pnomofil') || isFikseMachine(m);
                 });
-                klimasAndPnms.forEach(k => { k._sourceTable = 'machines'; k._brand = 'TEMSAN'; });
+                klimasAndPnms.forEach(k => {
+                    k._sourceTable = 'machines';
+                    k._brand = isFikseMachine(k) ? (k.brand || 'Fikse Kazan') : 'TEMSAN';
+                });
 
                 allMachinesCache = [...comps, ...dries, ...klimasAndPnms];
             } else {
@@ -583,20 +645,10 @@
                 const { data, error } = await supabaseClient.from(targetTable).select('*').range(0, 999).order('id', { ascending: true });
                 
                 if (error) {
-                    if (targetTable === 'machines_paketleme') {
-                        const { data: mainData } = await supabaseClient.from('machines').select('*');
-                        allMachinesCache = (mainData || []).filter(m => {
-                            const c = normalize(m.code || '');
-                            const n = normalize(m.name || m.machine_name || '');
-                            return c.includes('paket') || n.includes('paket') || c.includes('pak') || n.includes('pak');
-                        });
-                    } else {
-                        listEl.innerHTML = '<p class="text-red-400 text-center">Makineler yüklenirken hata oluştu.</p>';
-                        return;
-                    }
-                } else {
-                    allMachinesCache = data || [];
+                    listEl.innerHTML = '<p class="text-red-400 text-center">Makineler yüklenirken hata oluştu.</p>';
+                    return;
                 }
+                allMachinesCache = data || [];
 
                 allMachinesCache.forEach(m => {
                     m._sourceTable = targetTable;
@@ -611,6 +663,288 @@
             return a.id - b.id;
         }
 
+        function getIhzaratNormalizedText(m) {
+            const name = normalize(m.machine_name || m.name || '');
+            const opNo = normalize(String(m.operation_no || ''));
+            const mNo = normalize(String(m.machine_no || ''));
+            const code = normalize(String(m.code || ''));
+            const brand = normalize(String(m.brand || ''));
+            const combined = `${name}-${opNo}`.trim();
+            return { name, opNo, mNo, code, brand, combined };
+        }
+
+        function resolveTargetCategoryForSearch(searchVal) {
+            const compact = compactKey(searchVal);
+
+            if (
+                searchVal.startsWith('ring') ||
+                searchVal.startsWith('bobin') ||
+                searchVal.startsWith('k46') ||
+                searchVal.startsWith('qpro') ||
+                compact.startsWith('ring') ||
+                compact.startsWith('bobin')
+            ) {
+                return { cat: 'RING_BOBIN', table: 'machine_ringbobin' };
+            }
+
+            if (
+                searchVal.startsWith('fikse') ||
+                searchVal.startsWith('kazan') ||
+                searchVal.startsWith('paket') ||
+                searchVal.startsWith('pak') ||
+                compact.startsWith('fikse') ||
+                compact.startsWith('kazan') ||
+                compact.startsWith('paket')
+            ) {
+                return { cat: 'PAKETLEME_FIKSE', table: 'paketleme_fikse_grup' };
+            }
+
+            if (
+                searchVal.startsWith('klima') ||
+                searchVal.startsWith('klm') ||
+                searchVal.startsWith('kompres') ||
+                searchVal.startsWith('kurut') ||
+                searchVal.startsWith('pnom') ||
+                searchVal.startsWith('pno') ||
+                compact.startsWith('klima') ||
+                compact.startsWith('kompres') ||
+                compact.startsWith('kurut')
+            ) {
+                return { cat: 'KLIMA', table: 'klima_kompresor_grup' };
+            }
+
+            if (
+                searchVal.includes('fitil') ||
+                searchVal.startsWith('ft6') ||
+                searchVal.startsWith('marzol') ||
+                searchVal.startsWith('f5') ||
+                searchVal.startsWith('e32') ||
+                searchVal.startsWith('e35') ||
+                searchVal.startsWith('e26') ||
+                searchVal.startsWith('a11') ||
+                searchVal.startsWith('b12') ||
+                searchVal.startsWith('b72') ||
+                searchVal.startsWith('a79') ||
+                searchVal.startsWith('a21') ||
+                searchVal.startsWith('e80') ||
+                searchVal.startsWith('c70') ||
+                searchVal.startsWith('d45') ||
+                searchVal.startsWith('cer') ||
+                searchVal.startsWith('tarak') ||
+                searchVal.startsWith('penye') ||
+                compact.includes('fitil') ||
+                compact.startsWith('cer') ||
+                compact.startsWith('tarak') ||
+                compact.startsWith('penye')
+            ) {
+                return { cat: 'IHZARAT', table: 'machine_ihzarat' };
+            }
+
+            return null;
+        }
+
+        async function filterMachineList() {
+            const rawVal = document.getElementById('search-input').value;
+            const searchVal = normalize(rawVal);
+
+            if (!searchVal) {
+                renderMachines(allMachinesCache);
+                return;
+            }
+
+            const target = resolveTargetCategoryForSearch(searchVal);
+            if (target && (activeTableName !== target.table || currentCategoryFilter !== target.cat)) {
+                await setCategoryFilter(target.cat, target.table, true);
+                return;
+            }
+
+            renderMachines(allMachinesCache);
+        }
+
+        function extractMachineNumber(opNo, combined, genName, mNo) {
+            const directOp = parseInt(opNo, 10);
+            if (!Number.isNaN(directOp) && String(directOp) === opNo.trim()) return directOp;
+            const fullStr = `${combined} ${genName} ${mNo}`;
+            const match = fullStr.match(/(?:ring|bobin|fitil|cer|tarak|penye|kompresor|kurutucu|f5|ft6d?)[-_\s]*(\d+)/i);
+            if (match) return parseInt(match[1], 10);
+            const anyNum = fullStr.match(/\b([1-9]\d?)\b/);
+            return anyNum ? parseInt(anyNum[1], 10) : NaN;
+        }
+
+        function parseNumberedQuery(searchVal) {
+            const m = searchVal.match(/^([a-z\u00c0-\u024f]+?)[\s\-_]*(\d+)$/i);
+            if (!m) return null;
+            return {
+                prefix: normalize(m[1]),
+                num: parseInt(m[2], 10),
+                compact: compactKey(searchVal)
+            };
+        }
+
+        function getMachineDisplayNumber(machine, allMachines) {
+            const { opNo, combined } = getIhzaratNormalizedText(machine);
+            const genName = normalize(getMachineGeneratedName(machine, allMachines));
+            const mNo = normalize(String(machine.machine_no || ''));
+
+            if (activeTableName === 'machine_ringbobin' || machine._sourceTable === 'machine_ringbobin') {
+                const matchGen = genName.match(/(?:ring|bobin)[-_\s]*(\d+)/);
+                if (matchGen) return parseInt(matchGen[1], 10);
+                return Number(machine.id) <= 20 ? Number(machine.id) : Number(machine.id) - 20;
+            }
+
+            return extractMachineNumber(opNo, combined, genName, mNo);
+        }
+
+        function matchesCustomSearchRule(machine, searchVal, allMachines) {
+            const { name, opNo, mNo, code, brand, combined } = getIhzaratNormalizedText(machine);
+            const genName = normalize(getMachineGeneratedName(machine, allMachines));
+            const compactHaystack = compactKey(`${name} ${opNo} ${mNo} ${code} ${brand} ${combined} ${genName}`);
+            const fullHaystack = `${name} ${opNo} ${mNo} ${code} ${brand} ${combined} ${genName}`;
+            const numbered = parseNumberedQuery(searchVal);
+            const machineNum = getMachineDisplayNumber(machine, allMachines);
+
+            // Numaralı tekil arama (örn: RING-1, ring1, bobin-2, fitil-1, cer-3, tarak-1, penye-2)
+            if (numbered) {
+                const { prefix, num, compact } = numbered;
+
+                if (compactHaystack.includes(compact) || genName === `${prefix}-${num}` || genName === `${prefix}${num}`) {
+                    return true;
+                }
+
+                if (prefix === 'ring' || prefix === 'k46') {
+                    const isRing = (fullHaystack.includes('ring') || genName.startsWith('ring') || (Number(machine.id) <= 20 && activeTableName === 'machine_ringbobin')) && !fullHaystack.includes('bobin');
+                    return isRing && machineNum === num;
+                }
+
+                if (prefix === 'bobin' || prefix === 'qpro') {
+                    const isBobin = (fullHaystack.includes('bobin') || genName.startsWith('bobin') || (Number(machine.id) > 20 && activeTableName === 'machine_ringbobin')) && !genName.startsWith('ring');
+                    return isBobin && machineNum === num;
+                }
+
+                if (prefix === 'fitil' || prefix === 'ft6d' || prefix === 'ft6' || prefix === 'marzol') {
+                    const isFitil = fullHaystack.includes('fitil') || fullHaystack.includes('ft6') || fullHaystack.includes('marzol');
+                    return isFitil && machineNum === num;
+                }
+
+                if (prefix === 'cer' || prefix === 'd45') {
+                    const isCer = fullHaystack.includes('cer') || fullHaystack.includes('d45');
+                    return isCer && machineNum === num;
+                }
+
+                if (prefix === 'tarak' || prefix === 'c70') {
+                    const isTarak = fullHaystack.includes('tarak') || fullHaystack.includes('c70');
+                    return isTarak && machineNum === num;
+                }
+
+                if (prefix === 'penye' || prefix === 'e80') {
+                    const isPenye = fullHaystack.includes('penye') || fullHaystack.includes('e80');
+                    return isPenye && machineNum === num;
+                }
+
+                if (prefix === 'kompresor' || prefix === 'komp') {
+                    return (fullHaystack.includes('kompres') || machine._sourceTable === 'machine_compressors') && machineNum === num;
+                }
+
+                if (prefix === 'kurutucu' || prefix === 'kur') {
+                    return (fullHaystack.includes('kurut') || machine._sourceTable === 'machine_dryers') && machineNum === num;
+                }
+
+                return compactHaystack.includes(compact);
+            }
+
+            // ring veya k46 -> Tüm Ring makineleri
+            if (searchVal.startsWith('ring') || searchVal.startsWith('k46')) {
+                const isBobin = fullHaystack.includes('bobin') || fullHaystack.includes('muratec') || fullHaystack.includes('qpro') || Number(machine.id) > 20;
+                return (fullHaystack.includes('ring') || fullHaystack.includes('k46') || (Number(machine.id) <= 20 && activeTableName === 'machine_ringbobin')) && !isBobin;
+            }
+
+            // bobin veya qpro -> Tüm Bobin makineleri
+            if (searchVal.startsWith('bobin') || searchVal.startsWith('qpro')) {
+                const isRing = name.includes('ring') || genName.startsWith('ring');
+                return (fullHaystack.includes('bobin') || fullHaystack.includes('qpro') || fullHaystack.includes('muratec') || (Number(machine.id) > 20 && activeTableName === 'machine_ringbobin')) && !isRing;
+            }
+
+            const isFitil = fullHaystack.includes('fitil') || fullHaystack.includes('ft6') || fullHaystack.includes('marzol') || mNo.includes('198/228');
+            const num = extractMachineNumber(opNo, combined, genName, mNo);
+
+            // fikse veya kazan -> fikse kazanı
+            if (searchVal.startsWith('fikse') || searchVal.startsWith('kazan')) {
+                return isFikseMachine(machine) || fullHaystack.includes('fikse') || fullHaystack.includes('kazan');
+            }
+
+            // paket -> paketleme makinesi
+            if (searchVal.startsWith('paket') || searchVal.startsWith('pak')) {
+                return isPaketMachine(machine) || fullHaystack.includes('paket');
+            }
+
+            // FT6D veya MARZOLI -> fitil-1 .. fitil-6
+            if (searchVal === 'ft6d' || searchVal.startsWith('ft6') || searchVal.startsWith('marzol')) {
+                if (!isFitil) return false;
+                if (!Number.isNaN(num)) return num >= 1 && num <= 6;
+                return true;
+            }
+
+            // F5 -> Fitil-7 (id: 77, FİTİL, operation_no: 7, 198/228)
+            if (searchVal.startsWith('f5')) {
+                if (Number(machine.id) === 77 || opNo === '7' || mNo.includes('198/228') || num === 7 || combined.endsWith('-7') || genName.endsWith('-7')) {
+                    return true;
+                }
+                return isFitil && fullHaystack.includes('f5');
+            }
+
+            // E32 -> SERVOLAB
+            if (searchVal.startsWith('e32')) {
+                return fullHaystack.includes('servolab') || fullHaystack.includes('e32');
+            }
+
+            // E35 -> OMEGALLAP
+            if (searchVal.startsWith('e35')) {
+                return fullHaystack.includes('omeg') || fullHaystack.includes('e35');
+            }
+
+            // E26 -> SERVOLAB
+            if (searchVal.startsWith('e26')) {
+                return fullHaystack.includes('servolab') || fullHaystack.includes('e26');
+            }
+
+            // A11 -> UNIFLOC
+            if (searchVal.startsWith('a11')) {
+                return fullHaystack.includes('unifloc') || fullHaystack.includes('a11');
+            }
+
+            // B12 -> UNICLEAN
+            if (searchVal.startsWith('b12')) {
+                return fullHaystack.includes('uniclean') || fullHaystack.includes('b12');
+            }
+
+            // B72 -> UNIMIX
+            if (searchVal.startsWith('b72')) {
+                return fullHaystack.includes('unim') || fullHaystack.includes('b72');
+            }
+
+            // A79 -> UNISTORE
+            if (searchVal.startsWith('a79')) {
+                return fullHaystack.includes('unistore') || fullHaystack.includes('a79');
+            }
+
+            // A21 -> KONDENSER
+            if (searchVal.startsWith('a21')) {
+                return fullHaystack.includes('kondenser') || fullHaystack.includes('a21');
+            }
+
+            // E80 / C70 / D45
+            const modelAliasMap = {
+                'e80': ['penye', 'e80'],
+                'c70': ['tarak', 'c70'],
+                'd45': ['cer', 'd45']
+            };
+
+            const matchedKey = Object.keys(modelAliasMap).find(key => searchVal === key || searchVal.startsWith(key));
+            const targetTerms = matchedKey ? modelAliasMap[matchedKey] : [searchVal];
+
+            return targetTerms.some(term => fullHaystack.includes(term) || compactHaystack.includes(compactKey(term)));
+        }
+
         function renderMachines(machines) {
             const listEl = document.getElementById('machine-list');
             const searchVal = normalize(document.getElementById('search-input').value);
@@ -618,11 +952,7 @@
             let allowed = machines;
 
             if (searchVal) {
-                allowed = allowed.filter(m => {
-                    const name = m.machine_name || m.name || m.code || '';
-                    const code = m.machine_no || m.serial_no || '';
-                    return normalize(name).includes(searchVal) || normalize(code).includes(searchVal);
-                });
+                allowed = allowed.filter(m => matchesCustomSearchRule(m, searchVal, machines));
             } else if (activeTableName === 'machine_ringbobin') {
                 allowed.sort(sortMachinesCustom);
             }
@@ -666,9 +996,12 @@
                         displayName = `KURUTUCU-${dryCounter}`;
                     }
                     displayCode = machine.serial_no ? `Seri No: ${machine.serial_no}` : (machine.code || '');
+                } else if (isFikseMachine(machine)) {
+                    displayName = (machine.machine_name || machine.name || machine.code || 'FİKSE KAZANI').trim().toUpperCase();
+                    displayCode = machine.machine_no || machine.serial_no ? `Kazan No: ${machine.machine_no || machine.serial_no}` : 'Birim: Fikse Kazan';
                 } else {
-                    displayName = machine.code || machine.name || machine.machine_name || 'Makine';
-                    displayCode = machine.serial_no || '';
+                    displayName = machine.code || machine.name || machine.machine_name || 'Paketleme Makinesi';
+                    displayCode = machine.serial_no ? `Seri No: ${machine.serial_no}` : '';
                 }
 
                 const subInfo = displayCode ? `${displayCode} | Marka: ${displayBrand}` : `Marka: ${displayBrand}`;
@@ -764,10 +1097,6 @@
             loadMachines();
         }
 
-        function filterMachineList() {
-            renderMachines(allMachinesCache);
-        }
-
         function getMachineGeneratedName(machine, allList) {
             let baseName = "";
             if (machine._sourceTable === 'machine_ringbobin' || (!machine._sourceTable && activeTableName === 'machine_ringbobin')) {
@@ -788,6 +1117,8 @@
                     let pos = dries.indexOf(machine) + 1;
                     baseName = `KURUTUCU-${pos}`;
                 }
+            } else if (isFikseMachine(machine)) {
+                baseName = (machine.machine_name || machine.name || machine.code || 'FİKSE KAZANI').trim();
             } else {
                 baseName = machine.code || machine.name || machine.machine_name || '';
             }
@@ -1005,6 +1336,19 @@
                 ...(mainRes.data || []).map(m => { m._sourceTable = 'machines'; return m; })
             ];
 
+            if (!factoryMachines.some(m => isFikseMachine(m))) {
+                factoryMachines.push({
+                    id: 9981,
+                    machine_name: 'FİKSE KAZANI',
+                    name: 'FİKSE KAZANI',
+                    code: 'FİKSE KAZANI',
+                    location: 'İplik-6',
+                    brand: 'Fikse Kazan',
+                    _sourceTable: 'machines',
+                    _brand: 'Fikse Kazan'
+                });
+            }
+
             allMachinesCache = factoryMachines;
 
             let found = null;
@@ -1048,6 +1392,8 @@
                     let pos = dries.indexOf(machine) + 1;
                     baseName = `KURUTUCU-${pos}`;
                 }
+            } else if (isFikseMachine(machine)) {
+                baseName = (machine.machine_name || machine.name || machine.code || 'FİKSE KAZANI').trim();
             } else {
                 baseName = machine.code || machine.name || machine.machine_name || '';
             }
