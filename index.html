@@ -344,7 +344,7 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         const USERS = [
-            { username: "mbendes", name: "Mahmut Bendeş (Makine-Enerji Müdürü)", role: "ALL_FACTORY", dept: "İşletme Yönetimi", machines: ["FIKSE_KAZANI"] },
+            { username: "mbendes", name: "Mahmut Bendeş (Makine-Enerji Müdürü)", role: "ALL_FACTORY", dept: "Bakım / Teknik", machines: ["FIKSE_KAZANI"] },
             { username: "obaykus", name: "Onur Baykuş (İşletme Müdürü)", role: "ALL_FACTORY", dept: "İşletme Yönetimi", machines: ["FIKSE_KAZANI"] },
             { username: "cetinkaya", name: "Çetinkaya (Yönetici)", role: "ALL_FACTORY", dept: "İşletme Yönetimi", machines: ["FIKSE_KAZANI"] },
             { username: "m_altuntas", name: "Mustafa Altuntaş", role: "KLIMA", dept: "Bakım / Teknik", machines: ["FIKSE_KAZANI"] },
@@ -379,10 +379,12 @@
         let currentRecordsCache = [];
         let departmentRequestsCache = [];
         let currentRequestTab = 'ALL';
-        let departmentRequestPollingTimer = null;
+        let departmentRequestRealtimeChannel = null;
         let departmentRequestsLoadInProgress = false;
-        let departmentRequestAlertBaselineInitialized = false;
-        let seenDepartmentRequestIds = new Set();
+        let departmentRequestsReloadQueued = false;
+        let departmentRequestMonitoringStartedAt = 0;
+        let knownDepartmentRequestIds = new Set();
+        let notifiedDepartmentRequestIds = new Set();
         let requestAlertAudioContext = null;
 
         // 🛡️ KESİN GEÇMİŞ KİLİDİ
@@ -482,19 +484,47 @@
         }
 
         function startDepartmentRequestMonitoring() {
-            if (departmentRequestPollingTimer) {
-                clearInterval(departmentRequestPollingTimer);
-                departmentRequestPollingTimer = null;
+            if (departmentRequestRealtimeChannel) {
+                supabaseClient.removeChannel(departmentRequestRealtimeChannel)
+                    .catch(error => console.error('Talep bildirim bağlantısı kapatılamadı:', error));
+                departmentRequestRealtimeChannel = null;
             }
-            seenDepartmentRequestIds.clear();
-            departmentRequestAlertBaselineInitialized = false;
+            knownDepartmentRequestIds.clear();
+            notifiedDepartmentRequestIds.clear();
+            departmentRequestMonitoringStartedAt = Date.now();
 
             if (!canAccessDepartmentRequests()) return;
 
+            departmentRequestRealtimeChannel = supabaseClient
+                .channel('department-requests')
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'department_requests'
+                }, payload => {
+                    const req = payload.new;
+                    if (
+                        !req ||
+                        req.to_dept !== currentUser?.dept ||
+                        req.requester_username === currentUser?.username
+                    ) {
+                        return;
+                    }
+
+                    const requestId = String(req.id);
+                    if (notifiedDepartmentRequestIds.has(requestId)) return;
+                    knownDepartmentRequestIds.add(requestId);
+                    notifiedDepartmentRequestIds.add(requestId);
+                    notifyIncomingDepartmentRequest();
+                    loadDepartmentRequests();
+                })
+                .subscribe(status => {
+                    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                        console.error('Talep bildirimleri için Supabase Realtime bağlantısı kurulamadı:', status);
+                    }
+                });
+
             loadDepartmentRequests();
-            departmentRequestPollingTimer = setInterval(() => {
-                if (!document.hidden) loadDepartmentRequests();
-            }, 30000);
         }
 
         window.addEventListener('pointerdown', prepareRequestAlertAudio);
@@ -617,12 +647,13 @@
 
         function handleLogout() {
             if (confirm("Oturumu kapatmak istediğinize emin misiniz?")) {
-                if (departmentRequestPollingTimer) {
-                    clearInterval(departmentRequestPollingTimer);
-                    departmentRequestPollingTimer = null;
+                if (departmentRequestRealtimeChannel) {
+                    supabaseClient.removeChannel(departmentRequestRealtimeChannel)
+                        .catch(error => console.error('Talep bildirim bağlantısı kapatılamadı:', error));
+                    departmentRequestRealtimeChannel = null;
                 }
-                seenDepartmentRequestIds.clear();
-                departmentRequestAlertBaselineInitialized = false;
+                knownDepartmentRequestIds.clear();
+                notifiedDepartmentRequestIds.clear();
                 currentUser = null;
                 selectedMachine = null;
                 allMachinesCache = [];
@@ -779,7 +810,10 @@
                 listEl.innerHTML = '';
                 return;
             }
-            if (departmentRequestsLoadInProgress) return;
+            if (departmentRequestsLoadInProgress) {
+                departmentRequestsReloadQueued = true;
+                return;
+            }
             departmentRequestsLoadInProgress = true;
 
             try {
@@ -802,24 +836,34 @@
                 if (requestUser !== currentUser || !canAccessDepartmentRequests()) return;
 
                 const requests = data || [];
-                const newIncomingRequests = departmentRequestAlertBaselineInitialized
-                    ? requests.filter(req =>
-                        !seenDepartmentRequestIds.has(String(req.id)) &&
+                const newIncomingRequests = requests.filter(req => {
+                    const requestId = String(req.id);
+                    const createdAt = Date.parse(req.created_at);
+                    const isNewSinceMonitoringStarted =
+                        Number.isFinite(createdAt) && createdAt >= departmentRequestMonitoringStartedAt;
+                    const isIncoming =
                         req.to_dept === currentUser.dept &&
-                        req.requester_username !== currentUser.username
-                    )
-                    : [];
+                        req.requester_username !== currentUser.username;
+                    return isNewSinceMonitoringStarted &&
+                        isIncoming &&
+                        !knownDepartmentRequestIds.has(requestId) &&
+                        !notifiedDepartmentRequestIds.has(requestId);
+                });
 
-                requests.forEach(req => seenDepartmentRequestIds.add(String(req.id)));
-                departmentRequestAlertBaselineInitialized = true;
+                requests.forEach(req => knownDepartmentRequestIds.add(String(req.id)));
                 departmentRequestsCache = requests;
                 renderDepartmentRequests();
 
                 if (newIncomingRequests.length > 0) {
+                    newIncomingRequests.forEach(req => notifiedDepartmentRequestIds.add(String(req.id)));
                     notifyIncomingDepartmentRequest();
                 }
             } finally {
                 departmentRequestsLoadInProgress = false;
+                if (departmentRequestsReloadQueued) {
+                    departmentRequestsReloadQueued = false;
+                    loadDepartmentRequests();
+                }
             }
         }
 
