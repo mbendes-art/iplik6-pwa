@@ -109,7 +109,7 @@
             <div class="grid grid-cols-3 gap-2 text-xs">
                 <button id="req-tab-all" onclick="setRequestTab('ALL')" class="bg-indigo-600 text-white px-2.5 py-2 rounded-lg font-medium transition text-center">Tümü</button>
                 <button id="req-tab-incoming" onclick="setRequestTab('INCOMING')" class="bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-2.5 py-2 rounded-lg font-medium transition text-center">Birimime Gelen</button>
-                <button id="req-tab-mine" onclick="setRequestTab('MINE')" class="bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-2.5 py-2 rounded-lg font-medium transition text-center">Açtıklarım</button>
+                <button id="req-tab-mine" onclick="setRequestTab('MINE')" class="bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-2.5 py-2 rounded-lg font-medium transition text-center">Taleplerim</button>
             </div>
 
             <!-- Birim Filtresi -->
@@ -162,13 +162,7 @@
             <div class="grid grid-cols-2 gap-2">
                 <div>
                     <label class="block text-xs text-slate-400 mb-1">Gönderen Birim</label>
-                    <select id="req-from-dept" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
-                        <option value="Personel">Personel</option>
-                        <option value="Muhasebe">Muhasebe</option>
-                        <option value="Ticaret">Ticaret</option>
-                        <option value="İşletme Yönetimi">İşletme Yönetimi</option>
-                        <option value="Bakım / Teknik">Bakım / Teknik</option>
-                    </select>
+                    <p id="req-from-dept" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-300"></p>
                 </div>
                 <div>
                     <label class="block text-xs text-slate-400 mb-1">Hedef Birim</label>
@@ -372,6 +366,7 @@
             { username: "ykekeç", name: "Yıldızhan Kekçoğlu (Muhasebe)", role: "MUHASEBE", dept: "Muhasebe" },
             { username: "mtekin", name: "Murat Tekin (Ticaret Şefi)", role: "TICARET", dept: "Ticaret" }
         ];
+        const DEPARTMENT_REQUEST_USERNAMES = ["mbendes", "obaykus", "ykekeç", "ydemir", "mtekin"];
 
         const FIKSE_KAZANI_USERS = ["m_altuntas", "r_sahin", "n_erturk", "g_albayrak"];
 
@@ -384,6 +379,11 @@
         let currentRecordsCache = [];
         let departmentRequestsCache = [];
         let currentRequestTab = 'ALL';
+        let departmentRequestPollingTimer = null;
+        let departmentRequestsLoadInProgress = false;
+        let departmentRequestAlertBaselineInitialized = false;
+        let seenDepartmentRequestIds = new Set();
+        let requestAlertAudioContext = null;
 
         // 🛡️ KESİN GEÇMİŞ KİLİDİ
         history.replaceState({ page: 'app' }, document.title, window.location.href);
@@ -432,12 +432,79 @@
                 document.getElementById('view-logs-btn').classList.add('hidden');
             }
 
-            if (currentUser.role !== 'OPERATOR') {
+            if (canAccessDepartmentRequests()) {
                 document.getElementById('open-requests-btn').classList.remove('hidden');
             } else {
                 document.getElementById('open-requests-btn').classList.add('hidden');
             }
+
+            startDepartmentRequestMonitoring();
         }
+
+        function canAccessDepartmentRequests(user = currentUser) {
+            return Boolean(user && DEPARTMENT_REQUEST_USERNAMES.includes(user.username));
+        }
+
+        function prepareRequestAlertAudio() {
+            const AudioContextType = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextType) return;
+
+            if (!requestAlertAudioContext) {
+                requestAlertAudioContext = new AudioContextType();
+            }
+            if (requestAlertAudioContext.state === 'suspended') {
+                requestAlertAudioContext.resume().catch(error => console.warn('Talep sesi etkinleştirilemedi:', error));
+            }
+        }
+
+        function playRequestAlertSound() {
+            if (!requestAlertAudioContext || requestAlertAudioContext.state !== 'running') return;
+
+            const now = requestAlertAudioContext.currentTime;
+            const oscillator = requestAlertAudioContext.createOscillator();
+            const gain = requestAlertAudioContext.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, now);
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+            oscillator.connect(gain);
+            gain.connect(requestAlertAudioContext.destination);
+            oscillator.start(now);
+            oscillator.stop(now + 0.4);
+        }
+
+        function notifyIncomingDepartmentRequest() {
+            if (typeof navigator.vibrate === 'function') {
+                navigator.vibrate([300, 120, 300]);
+            }
+            playRequestAlertSound();
+        }
+
+        function startDepartmentRequestMonitoring() {
+            if (departmentRequestPollingTimer) {
+                clearInterval(departmentRequestPollingTimer);
+                departmentRequestPollingTimer = null;
+            }
+            seenDepartmentRequestIds.clear();
+            departmentRequestAlertBaselineInitialized = false;
+
+            if (!canAccessDepartmentRequests()) return;
+
+            loadDepartmentRequests();
+            departmentRequestPollingTimer = setInterval(() => {
+                if (!document.hidden) loadDepartmentRequests();
+            }, 30000);
+        }
+
+        window.addEventListener('pointerdown', prepareRequestAlertAudio);
+        window.addEventListener('keydown', prepareRequestAlertAudio);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && canAccessDepartmentRequests()) {
+                prepareRequestAlertAudio();
+                loadDepartmentRequests();
+            }
+        });
 
         // 💾 Oturum Yönetimi
         window.addEventListener('DOMContentLoaded', () => {
@@ -518,6 +585,7 @@
             }
 
             currentUser = foundUser;
+            prepareRequestAlertAudio();
             localStorage.setItem('iplik6_current_user', JSON.stringify(currentUser));
             
             try {
@@ -549,6 +617,12 @@
 
         function handleLogout() {
             if (confirm("Oturumu kapatmak istediğinize emin misiniz?")) {
+                if (departmentRequestPollingTimer) {
+                    clearInterval(departmentRequestPollingTimer);
+                    departmentRequestPollingTimer = null;
+                }
+                seenDepartmentRequestIds.clear();
+                departmentRequestAlertBaselineInitialized = false;
                 currentUser = null;
                 selectedMachine = null;
                 allMachinesCache = [];
@@ -574,7 +648,7 @@
 
         // 📨 BİRİMLER ARASI TALEPLER İŞLEMLERİ
         async function openRequestsSection() {
-            if (!currentUser || currentUser.role === 'OPERATOR') return;
+            if (!canAccessDepartmentRequests()) return;
             document.getElementById('dashboard-section').classList.add('hidden');
             document.getElementById('detail-section').classList.add('hidden');
             document.getElementById('requests-section').classList.remove('hidden');
@@ -603,11 +677,9 @@
         }
 
         function openNewRequestModal() {
-            const defaultFrom = currentUser?.dept || 'Personel';
-            const fromSelect = document.getElementById('req-from-dept');
-            const exists = Array.from(fromSelect.options).some(o => o.value === defaultFrom);
-            fromSelect.value = exists ? defaultFrom : 'Personel';
+            if (!canAccessDepartmentRequests()) return;
 
+            document.getElementById('req-from-dept').innerText = currentUser.dept;
             document.getElementById('req-id').value = '';
             document.getElementById('request-modal-title').innerText = 'Yeni Birimler Arası Talep';
             document.getElementById('submit-request-btn').innerText = 'Talebi Gönder';
@@ -620,12 +692,12 @@
 
         function openEditDepartmentRequestModal(reqId) {
             const req = departmentRequestsCache.find(r => String(r.id) === String(reqId));
-            if (!currentUser || !req || req.requester_username !== currentUser.username) return;
+            if (!canAccessDepartmentRequests() || !req || req.requester_username !== currentUser.username) return;
 
             document.getElementById('req-id').value = req.id;
             document.getElementById('request-modal-title').innerText = 'Birimler Arası Talebi Düzenle';
             document.getElementById('submit-request-btn').innerText = 'Değişiklikleri Kaydet';
-            document.getElementById('req-from-dept').value = req.from_dept || currentUser.dept || 'Personel';
+            document.getElementById('req-from-dept').innerText = currentUser.dept;
             document.getElementById('req-to-dept').value = req.to_dept || 'İşletme Yönetimi';
             document.getElementById('req-priority').value = req.priority || 'Normal';
             document.getElementById('req-subject').value = req.subject || '';
@@ -638,9 +710,9 @@
         }
 
         async function submitDepartmentRequest() {
-            if (!currentUser || currentUser.role === 'OPERATOR') return;
+            if (!canAccessDepartmentRequests()) return;
 
-            const fromDept = document.getElementById('req-from-dept').value;
+            const fromDept = currentUser.dept;
             const toDept = document.getElementById('req-to-dept').value;
             const priority = document.getElementById('req-priority').value;
             const subject = document.getElementById('req-subject').value.trim();
@@ -702,22 +774,53 @@
 
         async function loadDepartmentRequests() {
             const listEl = document.getElementById('requests-list');
-            listEl.innerHTML = '<p class="text-center text-slate-400 py-4">Talepler yükleniyor...</p>';
-
-            const { data, error } = await supabaseClient
-                .from('department_requests')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(300);
-
-            if (error) {
-                listEl.innerHTML = '<p class="text-red-400 text-center">Talepler yüklenirken hata oluştu.</p>';
-                console.error(error);
+            if (!canAccessDepartmentRequests()) {
+                departmentRequestsCache = [];
+                listEl.innerHTML = '';
                 return;
             }
+            if (departmentRequestsLoadInProgress) return;
+            departmentRequestsLoadInProgress = true;
 
-            departmentRequestsCache = data || [];
-            renderDepartmentRequests();
+            try {
+                if (!document.getElementById('requests-section').classList.contains('hidden')) {
+                    listEl.innerHTML = '<p class="text-center text-slate-400 py-4">Talepler yükleniyor...</p>';
+                }
+
+                const requestUser = currentUser;
+                const { data, error } = await supabaseClient
+                    .from('department_requests')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(300);
+
+                if (error) {
+                    listEl.innerHTML = '<p class="text-red-400 text-center">Talepler yüklenirken hata oluştu.</p>';
+                    console.error(error);
+                    return;
+                }
+                if (requestUser !== currentUser || !canAccessDepartmentRequests()) return;
+
+                const requests = data || [];
+                const newIncomingRequests = departmentRequestAlertBaselineInitialized
+                    ? requests.filter(req =>
+                        !seenDepartmentRequestIds.has(String(req.id)) &&
+                        req.to_dept === currentUser.dept &&
+                        req.requester_username !== currentUser.username
+                    )
+                    : [];
+
+                requests.forEach(req => seenDepartmentRequestIds.add(String(req.id)));
+                departmentRequestAlertBaselineInitialized = true;
+                departmentRequestsCache = requests;
+                renderDepartmentRequests();
+
+                if (newIncomingRequests.length > 0) {
+                    notifyIncomingDepartmentRequest();
+                }
+            } finally {
+                departmentRequestsLoadInProgress = false;
+            }
         }
 
         function getStatusBadgeClass(status) {
@@ -742,6 +845,10 @@
 
         function renderDepartmentRequests() {
             const listEl = document.getElementById('requests-list');
+            if (!canAccessDepartmentRequests()) {
+                listEl.innerHTML = '';
+                return;
+            }
             const deptFilter = document.getElementById('req-dept-filter').value;
             const userDept = currentUser?.dept || '';
 
@@ -805,7 +912,7 @@
 
         async function deleteDepartmentRequest(reqId) {
             const req = departmentRequestsCache.find(r => String(r.id) === String(reqId));
-            if (!currentUser || !req || req.requester_username !== currentUser.username) {
+            if (!canAccessDepartmentRequests() || !req || req.requester_username !== currentUser.username) {
                 alert('Yalnızca kendi talebinizi silebilirsiniz!');
                 return;
             }
@@ -835,6 +942,7 @@
         }
 
         function openUpdateRequestModal(reqId) {
+            if (!canAccessDepartmentRequests()) return;
             const req = departmentRequestsCache.find(r => r.id === reqId);
             if (!req) return;
 
@@ -850,6 +958,8 @@
         }
 
         async function submitRequestUpdate() {
+            if (!canAccessDepartmentRequests()) return;
+
             const reqId = document.getElementById('upd-req-id').value;
             const status = document.getElementById('upd-req-status').value;
             const note = document.getElementById('upd-req-note').value.trim();
