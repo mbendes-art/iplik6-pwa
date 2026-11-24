@@ -1633,7 +1633,7 @@
 
                 listEl.innerHTML += `
                     <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex items-center justify-between shadow">
-                        <div class="flex items-center gap-3 flex-1 cursor-pointer pr-2" onclick="openMachineDetail(${machine.id})">
+                        <div class="flex items-center gap-3 flex-1 cursor-pointer pr-2" onclick="openMachineDetail(${machine.id}, '${machine._sourceTable || activeTableName}')">
                             <div>
                                 <h3 class="font-bold text-sky-400 text-sm">${displayName}</h3>
                                 <p class="text-xs text-slate-400">Konum: ${displayLoc} | ${subInfo}</p>
@@ -1641,7 +1641,7 @@
                         </div>
                         <div class="flex items-center gap-4 pl-3 border-l border-slate-700/60">
                             <input type="checkbox" data-id="${machine.id}" ${isChecked} onchange="toggleMachineSelection(${machine.id}, this)" class="w-6 h-6 accent-sky-600 rounded cursor-pointer">
-                            <button onclick="openMachineDetail(${machine.id})" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded-lg text-slate-300 font-medium">Seç →</button>
+                            <button onclick="openMachineDetail(${machine.id}, '${machine._sourceTable || activeTableName}')" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded-lg text-slate-300 font-medium">Seç →</button>
                         </div>
                     </div>
                 `;
@@ -1750,8 +1750,10 @@
             return baseName.toUpperCase();
         }
 
-        async function openMachineDetail(machineId) {
-            selectedMachine = allMachinesCache.find(m => m.id === machineId);
+        async function openMachineDetail(machineId, sourceTableName = null) {
+            selectedMachine = allMachinesCache.find(m =>
+                m.id === machineId && (!sourceTableName || m._sourceTable === sourceTableName)
+            );
             if(!selectedMachine) return;
 
             document.getElementById('dashboard-section').classList.add('hidden');
@@ -2017,7 +2019,7 @@
 
             if (found) {
                 activeTableName = found._sourceTable || 'machine_ringbobin';
-                openMachineDetail(found.id);
+                openMachineDetail(found.id, found._sourceTable);
             } else {
                 alert(`"${tag}" makinesi sistemde eşleştirilemedi.`);
             }
