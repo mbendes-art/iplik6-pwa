@@ -1204,7 +1204,7 @@
                                     ${actionBtnsHtml}
                                 </div>
                             </div>
-                            <p class="text-sm text-slate-200 mt-1 cursor-pointer" onclick="openMachineFromRecord('${escapeHtml(rec.description)}')">${rec.description}</p>
+                            <button type="button" class="block w-full text-left text-sm text-slate-200 mt-1 cursor-pointer select-none touch-manipulation active:text-sky-300" onclick="openMachineFromRecord('${escapeHtml(rec.description)}')">${rec.description}</button>
                             <p class="text-xs text-slate-400 border-t border-slate-700/50 pt-1 mt-1">Parça: ${rec.parts_replaced || '-'} | Bildiren/Teknisyen: ${rec.technician || '-'}</p>
                         </div>
                     `;
