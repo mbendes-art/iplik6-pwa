@@ -1204,7 +1204,7 @@
                                     ${actionBtnsHtml}
                                 </div>
                             </div>
-                            <button type="button" class="block w-full text-left text-sm text-slate-200 mt-1 cursor-pointer select-none touch-manipulation active:text-sky-300" onclick="openMachineFromRecord('${escapeHtml(rec.description)}')">${rec.description}</button>
+                            <button type="button" class="block w-full text-left text-sm text-slate-200 mt-1 cursor-pointer select-none touch-manipulation active:text-sky-300" onclick="openMachineFromRecord('${String(rec.id)}')">${rec.description}</button>
                             <p class="text-xs text-slate-400 border-t border-slate-700/50 pt-1 mt-1">Parça: ${rec.parts_replaced || '-'} | Bildiren/Teknisyen: ${rec.technician || '-'}</p>
                         </div>
                     `;
@@ -1964,14 +1964,21 @@
             });
         }
 
-        async function openMachineFromRecord(desc) {
+        async function openMachineFromRecord(recordId) {
+            const record = currentRecordsCache.find(rec => String(rec.id) === String(recordId));
+            if (!record) {
+                alert('Arıza kaydı bulunamadı. Listeyi yenileyip tekrar deneyin.');
+                return;
+            }
+
+            const desc = record.description || '';
             const match = desc.match(/\[(.*?)\]/);
             if (!match) {
                 alert('Bu kayıtta makine etiketi bulunamadı.');
                 return;
             }
             const tag = match[1].trim();
-            const normTag = normalize(tag).replace(/[-\s]/g, '');
+            const normTag = normalizeMachineTag(tag);
 
             const [ringRes, ihzaratRes, compRes, dryRes, mainRes] = await Promise.all([
                 supabaseClient.from('machine_ringbobin').select('*'),
@@ -2004,18 +2011,21 @@
 
             allMachinesCache = factoryMachines;
 
-            let found = null;
+            const matches = [];
             for (let m of factoryMachines) {
                 let genName = getMachineGeneratedNameForSearch(m, factoryMachines);
-                let normGenName = normalize(genName).replace(/[-\s]/g, '');
-                let normCode = normalize(m.code || '').replace(/[-\s]/g, '');
-                let normName = normalize(m.machine_name || m.name || '').replace(/[-\s]/g, '');
+                let normGenName = normalizeMachineTag(genName);
+                let normCode = normalizeMachineTag(m.code || '');
+                let normName = normalizeMachineTag(m.machine_name || m.name || '');
 
                 if (normGenName === normTag || normCode === normTag || normName === normTag) {
-                    found = m;
-                    break;
+                    matches.push(m);
                 }
             }
+
+            const found = matches.find(m =>
+                record.machine_id != null && String(m.id) === String(record.machine_id)
+            ) || matches[0];
 
             if (found) {
                 activeTableName = found._sourceTable || 'machine_ringbobin';
@@ -2023,6 +2033,10 @@
             } else {
                 alert(`"${tag}" makinesi sistemde eşleştirilemedi.`);
             }
+        }
+
+        function normalizeMachineTag(value) {
+            return compactKey(normalize(value).replace(/^ipl6[-\s]*/, ''));
         }
 
         function getMachineGeneratedNameForSearch(machine, allList) {
